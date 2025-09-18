@@ -441,12 +441,6 @@ class ECSProcessor(BaseProcessor):
         netflow_packet = {}
         try:
             netflow_packet = orjson.loads(message) if isinstance(message, str) else message
-            shared_logger.info(
-                "Successfully parsed binary processor output as JSON",
-                extra={
-                    "raw_message": message,
-                }
-            )
         except orjson.JSONDecodeError as e:
             shared_logger.error(
                 "Failed to parse binary processor output as JSON",
@@ -485,13 +479,6 @@ class ECSProcessor(BaseProcessor):
             # message field should be a string as per shipper requirements
             # ref: shippers/composite.py:52-73
             event["fields"]["message"] = orjson.dumps(ecs_event).decode("utf-8")
-            shared_logger.info(
-                "Successfully converted NetFlow/IPFIX data to ECS format",
-                extra={
-                    "ecs_event": ecs_event,
-                    "raw_event": event,
-                }
-            )
 
             return ProcessorResult(event)
 

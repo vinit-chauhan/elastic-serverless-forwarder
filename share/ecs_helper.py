@@ -1,4 +1,3 @@
-
 import base64
 import functools
 import hashlib
@@ -8,6 +7,7 @@ import struct
 from typing import Any, Dict, List, Union
 
 import xxhash
+from .logger import logger as shared_logger
 
 
 def convert_networks(networks: List[str]) -> List:
@@ -168,8 +168,9 @@ def get_ip_locality(ip: str, internal_networks: List) -> str:
             if ip_obj in i:
                 return "internal"
 
-    except Exception:
-        pass
+    except Exception as e:
+        shared_logger.error("Error getting IP locality", extra={"error": str(e), "ip": ip})
+        return "unknown"
 
     return "external"
 

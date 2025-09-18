@@ -486,15 +486,6 @@ def parse_ipfix_stream(data_source: BytesIO) -> Generator[dict[str, Any], None, 
 
     Yields:
         dict: Individual IPFIX records with parsed fields
-
-    Example:
-        ```python
-        with open('data.ipfix', 'rb') as f:
-            data = f.read()
-
-        for record in parse_ipfix_stream(data):
-            print(f"Record: {record}")
-        ```
     """
     parser = IPFIXStreamingParser(data_source)
     try:
