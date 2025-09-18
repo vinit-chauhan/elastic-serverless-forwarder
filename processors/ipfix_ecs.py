@@ -1,14 +1,15 @@
-from copy import deepcopy
+import re
 from datetime import datetime, timezone, timedelta
-import json
 from typing import Dict, Any, List, Optional
+
+import orjson
+
+import processors.ie as ie
+from share.logger import logger as shared_logger
+import share.ecs_helper as ecs_helper
 
 from .processor import BaseProcessor, ProcessorResult
 from .registry import register_processor
-import share.ecs_helper as ecs_helper
-from share.logger import logger as shared_logger
-import processors.ie as ie
-import re
 
 SNAKE_CASE_PATTERN_1 = re.compile('(.)([A-Z][a-z]+)')
 SNAKE_CASE_PATTERN_2 = re.compile('([a-z0-9])([A-Z])')
@@ -37,7 +38,7 @@ RFC_5102_INFO_ELEMENT_SNAKE_CASE = {v[0]: snakify(
 
 def export_to_ecs(netflow_packet: Dict[str, Any],
                   exporter_address: Optional[str] = None,
-                  internal_networks: List = [],
+                  internal_networks: Optional[List] = None,
                   flow_timestamp: Optional[datetime] = None) -> Dict[str, Any]:
     """
     Convert a NetFlow/IPFIX packet to ECS (Elastic Common Schema) format.
@@ -51,7 +52,7 @@ def export_to_ecs(netflow_packet: Dict[str, Any],
     Returns:
         Dictionary in ECS format
     """
-    if internal_networks == []:
+    if internal_networks is None:
         internal_networks = ecs_helper.convert_networks(
             ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"])
 
@@ -158,7 +159,9 @@ def process_additional_flags(
             tcp_ctrl_bits = int(tcp_ctrl_bits, 16)
     except (ValueError, TypeError):
         shared_logger.warning(
-            f"Invalid tcpControlBits value: {tcp_ctrl_bits}, skipping TCP flags processing")
+            "Invalid tcpControlBits value, skipping TCP flags processing",
+            extra={"tcp_ctrl_bits": tcp_ctrl_bits}
+        )
 
     if tcp_ctrl_bits:
         tcp_flags = []
@@ -432,25 +435,19 @@ class ECSProcessor(BaseProcessor):
         if context is None:
             context = {}
 
-        # Extract context information
-        # TODO: Make exporter_address, internal_networks configurable
-        exporter_address = context.get("exporter_address", "10.0.0.1")
-        internal_networks = context.get("internal_networks", [])
-        flow_timestamp = event.get("flow_timestamp")
-
         # The event should contain the netflow/ipfix data
         message = event.get("fields", {}).get("message", {})
 
         netflow_packet = {}
         try:
-            netflow_packet = json.loads(message) if isinstance(message, str) else message
+            netflow_packet = orjson.loads(message) if isinstance(message, str) else message
             shared_logger.info(
                 "Successfully parsed binary processor output as JSON",
                 extra={
                     "raw_message": message,
                 }
             )
-        except json.JSONDecodeError as e:
+        except orjson.JSONDecodeError as e:
             shared_logger.error(
                 "Failed to parse binary processor output as JSON",
                 extra={
@@ -458,6 +455,24 @@ class ECSProcessor(BaseProcessor):
                     "raw_message": message,
                 }
             )
+
+        # Extract context information
+        if "exporterIPv4Address" in netflow_packet:
+            exporter_address = netflow_packet.get("exporterIPv4Address")
+        elif "exporterIPv6Address" in netflow_packet:
+            exporter_address = netflow_packet.get("exporterIPv6Address")
+        else:
+            exporter_address = "0.0.0.0"
+
+        # TODO: Make internal_networks configurable
+        internal_networks = context.get("internal_networks", None)
+
+        flow_timestamp = None
+        if "flow_timestamp" in netflow_packet:
+            flow_timestamp = netflow_packet.get("flow_timestamp")
+        elif "export_time" in context.get("header", {}):
+            flow_timestamp = context["header"]["export_time"]
+
         try:
             # Convert to ECS format
             ecs_event = export_to_ecs(
@@ -467,7 +482,9 @@ class ECSProcessor(BaseProcessor):
                 flow_timestamp=flow_timestamp
             )
 
-            event["fields"]["message"] = json.dumps(ecs_event)
+            # message field should be a string as per shipper requirements
+            # ref: shippers/composite.py:52-73
+            event["fields"]["message"] = orjson.dumps(ecs_event).decode("utf-8")
             shared_logger.info(
                 "Successfully converted NetFlow/IPFIX data to ECS format",
                 extra={
@@ -479,8 +496,8 @@ class ECSProcessor(BaseProcessor):
             return ProcessorResult(event)
 
         except Exception as e:
-            # Log error and return empty result
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error converting to ECS format: {str(e)}")
+            shared_logger.error(
+                "Error converting to ECS format",
+                extra={"error": str(e)}
+            )
             return ProcessorResult()

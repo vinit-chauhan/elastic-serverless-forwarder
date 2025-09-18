@@ -126,7 +126,7 @@ class DataRecord:
                 value = convert(field_data, field_type)
                 record.set_field(field_name, value)
             except Exception as e:
-                shared_logger.debug(f"Error parsing field {field_name}: {e}")
+                shared_logger.debug("Error parsing field", extra={"field_name": field_name, "error": str(e)})
                 record.set_field(field_name, field_data.hex())
 
             offset += field_length
@@ -167,7 +167,7 @@ class IPFIXStreamingParser:
 
         version, length = struct.unpack_from("!HH", raw[:4])
         if version != 10:
-            shared_logger.warning(f"Unsupported IPFIX version: {version}")
+            shared_logger.warning("Unsupported IPFIX version", extra={"version": version})
             return None
 
         export_time, sequence_number, observation_domain_id = \
@@ -196,11 +196,12 @@ class IPFIXStreamingParser:
             template = TemplateSet.parse_from_data(data)
             if hasattr(template, 'template_id'):
                 self.templates[template.template_id] = template
-                shared_logger.debug(f"Parsed template {template.template_id} with {len(template.fields)} fields")
+                shared_logger.debug("Parsed template", extra={
+                                    "template_id": template.template_id, "fields": len(template.fields)})
             else:
-                shared_logger.warning(f"Template parsing returned invalid object: {type(template)}")
+                shared_logger.warning("Template parsing returned invalid object", extra={"type": type(template)})
         except Exception as e:
-            shared_logger.warning(f"Error parsing template set: {e}")
+            shared_logger.warning("Error parsing template set", extra={"error": str(e)})
 
     def parse_data_set(
         self, template_id: int, data: bytes, msg_header: dict
@@ -208,14 +209,14 @@ class IPFIXStreamingParser:
         """Parse a data set using the corresponding template and yield records."""
         template = self.templates.get(template_id)
         if not template:
-            shared_logger.warning(f"Missing template for set {template_id}")
+            shared_logger.warning("Missing template for set", extra={"template_id": template_id})
             return
 
         # Calculate record size from template
         record_size = sum(length for _, length, _ in template.get_fields())
 
         if record_size == 0:
-            shared_logger.warning(f"Template {template_id} has zero record size")
+            shared_logger.warning("Template has zero record size", extra={"template_id": template_id})
             return
 
         # Parse multiple records from the data set
@@ -231,7 +232,7 @@ class IPFIXStreamingParser:
                 yield record_dict, record_length
                 offset += record_size
             except Exception as e:
-                shared_logger.warning(f"Error parsing data record: {e}")
+                shared_logger.warning("Error parsing data record", extra={"error": str(e)})
                 break
 
     def parse_records(self) -> Generator[dict[str, Any], None, None]:
@@ -256,7 +257,7 @@ class IPFIXStreamingParser:
                 msg_header = msg_header_obj.to_dict()
                 bytes_remaining = msg_header_obj.length - 16
 
-                shared_logger.debug(f"Processing IPFIX message: {bytes_remaining} bytes remaining")
+                shared_logger.debug("Processing IPFIX message", extra={"bytes_remaining": bytes_remaining})
 
                 # Process all sets in this message
                 while bytes_remaining > 0 and not self.closed:
@@ -288,10 +289,10 @@ class IPFIXStreamingParser:
                             yield record
                             record_count += 1
                     else:
-                        shared_logger.debug(f"Skipping unknown set ID {set_id}")
+                        shared_logger.debug("Skipping unknown set ID", extra={"set_id": set_id})
 
         except Exception as e:
-            shared_logger.error(f"Error in IPFIX parsing: {e}")
+            shared_logger.error("Error in IPFIX parsing", extra={"error": str(e)})
         finally:
             if record_count > 0:
                 shared_logger.info(
@@ -328,7 +329,8 @@ class IPFIXStreamingParser:
                 self.file.seek(range_start)
                 self.offset = range_start
                 self.closed = False  # Reset closed flag since we've seeked to new position
-                shared_logger.debug(f"After template collection: seeking to offset {range_start}, closed={self.closed}")
+                shared_logger.debug("After template collection", extra={
+                                    "range_start": range_start, "closed": self.closed})
 
             while not self.closed:
                 # Track message start position in the binary file
@@ -342,8 +344,8 @@ class IPFIXStreamingParser:
                     message_start_position = range_start + self.offset
 
                 shared_logger.debug(
-                    f"Parser loop: offset={self.offset}, range_start={range_start}, "
-                    f"message_start={message_start_position}"
+                    "Parser loop",
+                    extra={"offset": self.offset, "range_start": range_start, "message_start": message_start_position}
                 )
 
                 # Parse message header
@@ -356,8 +358,8 @@ class IPFIXStreamingParser:
                 bytes_remaining = msg_header_obj.length - 16
 
                 shared_logger.debug(
-                    "Processing IPFIX message at binary position %d: %d bytes remaining",
-                    message_start_position, bytes_remaining
+                    "Processing IPFIX message at binary position",
+                    extra={"message_start_position": message_start_position, "bytes_remaining": bytes_remaining}
                 )
 
                 # Process all sets in this message
@@ -389,7 +391,7 @@ class IPFIXStreamingParser:
                         # Store data set for processing after we know the message end position
                         sets_in_message.append((set_id, set_data, msg_header))
                     else:
-                        shared_logger.debug(f"Skipping unknown set ID {set_id}")
+                        shared_logger.debug("Skipping unknown set ID", extra={"set_id": set_id})
 
                 # Calculate the position where this message ends in the binary file
                 # This is the position where the next lambda can safely continue from
@@ -401,7 +403,9 @@ class IPFIXStreamingParser:
                     message_end_position = range_start + self.offset
 
                 shared_logger.debug(
-                    f"Message spans binary positions {message_start_position} to {message_end_position}"
+                    "Message spans binary positions",
+                    extra={"message_start_position": message_start_position,
+                           "message_end_position": message_end_position}
                 )
 
                 # Now process all data sets and yield records with correct binary offsets
@@ -460,13 +464,13 @@ class IPFIXStreamingParser:
 
                     if set_id == 2:  # Template Set - this is what we need
                         self.parse_template_set(set_data)
-                        shared_logger.debug(f"Collected template from set {set_id}")
+                        shared_logger.debug("Collected template from set", extra={"set_id": set_id})
                     # Skip all other sets - we only need templates
 
         except Exception as e:
-            shared_logger.warning(f"Error collecting templates: {e}")
+            shared_logger.warning("Error collecting templates", extra={"error": str(e)})
         finally:
-            shared_logger.info(f"Template collection complete, found {len(self.templates)} templates")
+            shared_logger.info("Template collection complete", extra={"templates": len(self.templates)})
 
 
 def parse_ipfix_stream(data_source: BytesIO) -> Generator[dict[str, Any], None, None]:
@@ -496,7 +500,7 @@ def parse_ipfix_stream(data_source: BytesIO) -> Generator[dict[str, Any], None, 
     try:
         yield from parser.parse_records()
     except Exception as e:
-        shared_logger.error(f"Error in IPFIX parsing: {e}")
+        shared_logger.error("Error in IPFIX parsing", extra={"error": str(e)})
     finally:
         parser.close()
 
