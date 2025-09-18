@@ -3894,7 +3894,7 @@ class TestLambdaHandlerIntegration(TestCase):
             index="logs-generic-default",
             op_type="create",
             id=fingerprint,
-            document={"@timestamp": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")},
+            document={"@timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")},
         )
 
         processors = {
@@ -4595,7 +4595,7 @@ class TestLambdaHandlerIntegration(TestCase):
             "_op_type": "create",
             "_index": "logs-generic-default",
             "_id": _time_based_id(suffix="record"),
-            "@timestamp": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "@timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "tags": ["forwarded", "esf-cloudwatch"],
             "data_stream": {"type": "logs", "dataset": "generic", "namespace": "default"},
             "event": {"dataset": "generic"},
@@ -4625,7 +4625,7 @@ class TestLambdaHandlerIntegration(TestCase):
 
         # Update generic message with fresh id & timestamp
         failed_event["_id"] = _time_based_id(suffix="record")
-        failed_event["@timestamp"] = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        failed_event["@timestamp"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
         sqs_replay_message = {
             "output_destination": self.elasticsearch.get_url(),

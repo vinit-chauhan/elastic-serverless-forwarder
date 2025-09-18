@@ -139,7 +139,7 @@ def _handle_cloudwatch_logs_event(
             assert isinstance(log_event, bytes)
 
             es_event: dict[str, Any] = {
-                "@timestamp": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                "@timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 "fields": {
                     "message": log_event.decode("utf-8"),
                     "log": {

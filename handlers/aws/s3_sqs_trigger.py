@@ -168,7 +168,7 @@ def _handle_s3_sqs_event(
 
             timestamp = parsed_data.get("@timestamp", None)
             if timestamp is None:
-                timestamp = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+                timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
             es_event: dict[str, Any] = {
                 "@timestamp":  timestamp,
