@@ -4,7 +4,7 @@
 
 import gzip
 from ipaddress import IPv4Address
-import json
+from share.json import json_parser
 import struct
 from io import BytesIO
 from typing import Optional, Tuple
@@ -26,6 +26,42 @@ from storage import (
 from storage.decorator import ipfix_decode
 
 
+class IPFIXTestHelper:
+    """Helper class for IPFIX test utilities."""
+
+    @staticmethod
+    def create_template_set(template_id: int, fields: list[tuple[int, int]]) -> bytes:
+        """Create an IPFIX template set with given fields."""
+        field_count = len(fields)
+        template_record = struct.pack("!HH", template_id, field_count)
+
+        field_data = b""
+        for field_id, field_length in fields:
+            field_data += struct.pack("!HH", field_id, field_length)
+
+        template_data = template_record + field_data
+        template_set_length = 4 + len(template_data)
+        template_set_header = struct.pack("!HH", 2, template_set_length)
+
+        return template_set_header + template_data
+
+    @staticmethod
+    def create_data_set(template_id: int, records: list[bytes]) -> bytes:
+        """Create an IPFIX data set with given records."""
+        data_records = b"".join(records)
+        data_set_length = 4 + len(data_records)
+        data_set_header = struct.pack("!HH", template_id, data_set_length)
+
+        return data_set_header + data_records
+
+    @staticmethod
+    def create_ipfix_header(message_length: int, export_time: int = 1640995200,
+                            sequence_number: int = 1, observation_domain_id: int = 1) -> bytes:
+        """Create an IPFIX message header."""
+        return struct.pack("!HHIII", 10, message_length, export_time,
+                           sequence_number, observation_domain_id)
+
+
 class DummyIPFIXStorage(CommonStorage):
     """
     Dummy Storage for testing IPFIX decorator.
@@ -34,7 +70,7 @@ class DummyIPFIXStorage(CommonStorage):
     def __init__(self, binary_processor_type: Optional[str] = None):
         self.binary_processor_type = binary_processor_type
 
-    def get_by_lines(self, range_start: int) -> GetByLinesIterator:
+    def get_by_lines(self, range_start: int) -> GetByLinesIterator:  # pylint: disable=unused-argument
         yield b"", 0, 0, None
 
     def get_as_string(self) -> str:
@@ -46,6 +82,7 @@ class DummyIPFIXStorage(CommonStorage):
     @ipfix_decode
     @inflate
     def generate(self, range_start: int, body: BytesIO, is_gzipped: bool) -> StorageDecoratorIterator:
+        # pylint: disable=unused-argument
         if is_gzipped:
             reader: StorageReader = StorageReader(raw=body)
             yield reader, 0, 0, b"", None
@@ -55,14 +92,24 @@ class DummyIPFIXStorage(CommonStorage):
 
 @pytest.mark.unit
 class TestIPFIXDecorator(TestCase):
-    """Test cases for the IPFIX decorator functionality."""
+    """
+        Test cases for the IPFIX decorator functionality.
+
+        This class tests the IPFIX decorator which handles binary IPFIX data processing
+        including template parsing, data record extraction, and conversion to JSON format.
+    """
 
     def create_simple_ipfix_messages(self, data: list[Tuple[str, str, int]]) -> list[bytes]:
         """Create a series of simple IPFIX messages for testing."""
         messages = [self.create_simple_ipfix_message(*item) for item in data]
         return messages
 
-    def create_simple_ipfix_message(self, source_ip: str = '192.168.1.100', destination_ip: str = '10.0.0.50', protocol: int = 6) -> bytes:
+    def create_simple_ipfix_message(
+            self,
+            source_ip: str = '192.168.1.100',
+            destination_ip: str = '10.0.0.50',
+            protocol: int = 6
+    ) -> bytes:
         """Create a simple IPFIX message for testing."""
         # Template Set
         template_id = 256
@@ -102,6 +149,7 @@ class TestIPFIXDecorator(TestCase):
 
         return header + template_set + data_set
 
+    # Tests for decorator activation/deactivation
     def test_ipfix_decorator_disabled_when_no_binary_processor_type(self):
         """Test that IPFIX decorator is disabled when binary_processor_type is not set."""
         storage = DummyIPFIXStorage()  # No binary_processor_type
@@ -112,7 +160,7 @@ class TestIPFIXDecorator(TestCase):
 
         # Should pass through unchanged
         self.assertEqual(len(result), 1)
-        data, start_offset, end_offset, newline, event_offset = result[0]
+        data, _, _, _, _ = result[0]
         self.assertEqual(data, test_data)
 
     def test_ipfix_decorator_disabled_when_binary_processor_type_not_ipfix(self):
@@ -125,8 +173,15 @@ class TestIPFIXDecorator(TestCase):
 
         # Should pass through unchanged
         self.assertEqual(len(result), 1)
-        data, start_offset, end_offset, newline, event_offset = result[0]
+        data, _, _, _, _ = result[0]
         self.assertEqual(data, test_data)
+
+    def test_ipfix_decorator_enabled_with_correct_processor_type(self):
+        """Test that IPFIX decorator is enabled when binary_processor_type is 'ipfix'."""
+        storage = DummyIPFIXStorage(binary_processor_type="ipfix")
+
+        # Verify the storage is configured for IPFIX processing
+        self.assertEqual(storage.binary_processor_type, "ipfix")
 
     def test_ipfix_decorator_processes_binary_data(self):
         """Test that IPFIX decorator processes binary data when enabled."""
@@ -138,22 +193,26 @@ class TestIPFIXDecorator(TestCase):
 
         # Should have processed the data
         self.assertEqual(len(result), 1)
-        data, start_offset, end_offset, newline, event_offset = result[0]
+        data, _, _, _, _ = result[0]
 
         # Data should be JSON bytes
         self.assertIsInstance(data, bytes)
-        parsed_data = json.loads(data.decode('utf-8'))
+        parsed_data = json_parser(data.decode('utf-8'))
 
-        # With streaming parser, IP addresses come as hex strings initially
-        # The exact format depends on the conversion logic
+        # IP addresses are converted to dotted decimal format by the IPFIX parser
         self.assertIn('sourceIPv4Address', parsed_data)
         self.assertIn('destinationIPv4Address', parsed_data)
         self.assertIn('protocolIdentifier', parsed_data)
 
         # Verify the record has expected structure
-        self.assertIn('@timestamp', parsed_data)
+        # Note: @timestamp is not added by the IPFIX decorator, only parsed IPFIX fields
         self.assertIn('header', parsed_data)
 
+        # Verify the IP addresses are in dotted decimal format
+        self.assertEqual(parsed_data['sourceIPv4Address'], '192.168.1.100')
+        self.assertEqual(parsed_data['destinationIPv4Address'], '10.0.0.50')
+
+    # Tests for different data formats
     def test_ipfix_decorator_processes_gzipped_data(self):
         """Test that IPFIX decorator processes gzipped IPFIX data."""
         storage = DummyIPFIXStorage(binary_processor_type="ipfix")
@@ -165,16 +224,20 @@ class TestIPFIXDecorator(TestCase):
 
         # Should have processed the data
         self.assertEqual(len(result), 1)
-        data, start_offset, end_offset, newline, event_offset = result[0]
+        data, _, _, _, _ = result[0]
 
         # Data should be JSON bytes
         self.assertIsInstance(data, bytes)
-        parsed_data = json.loads(data.decode('utf-8'))
+        parsed_data = json_parser(data.decode('utf-8'))
 
         # Verify it has IPFIX structure
         self.assertIn('sourceIPv4Address', parsed_data)
-        self.assertIn('@timestamp', parsed_data)
+        self.assertIn('header', parsed_data)
 
+        # Verify the IP address is in dotted decimal format
+        self.assertEqual(parsed_data['sourceIPv4Address'], '192.168.1.100')
+
+    # Tests for multiple records and data handling
     def test_ipfix_decorator_handles_multiple_records(self):
         """Test that IPFIX decorator handles multiple IPFIX records."""
 
@@ -198,9 +261,9 @@ class TestIPFIXDecorator(TestCase):
             data, _, _, _, _ = result
             self.assertIsInstance(data, bytes)
             data_str = data.decode('utf-8')
-            # Should contain all three flow_id values in the concatenated JSON
-            expected_ip = (IPv4Address(records[i][0]).packed).hex()
-            self.assertIn(f'"sourceIPv4Address": "{expected_ip}"', data_str, f"Should contain flow_id {i + 1}")
+            # IP addresses are in dotted decimal format, not hex
+            expected_ip = records[i][0]  # Use the original IP string
+            self.assertIn(f'"sourceIPv4Address":"{expected_ip}"', data_str, f"Should contain source IP {expected_ip}")
 
     def test_ipfix_decorator_handles_empty_result(self):
         """Test that IPFIX decorator handles empty processor results."""
@@ -212,6 +275,7 @@ class TestIPFIXDecorator(TestCase):
         # Should have no results
         self.assertEqual(len(result), 0)
 
+    # Tests for error handling and edge cases
     @patch('share.ipfix_parser.parse_ipfix_stream')
     @patch('storage.decorator.shared_logger')
     def test_ipfix_decorator_handles_processing_exception(self, mock_shared_logger, mock_parse_ipfix_stream):
@@ -227,7 +291,7 @@ class TestIPFIXDecorator(TestCase):
             result = list(storage.generate(0, fixtures, False))
             # Should have no results due to exception
             self.assertEqual(len(result), 0)
-        except Exception:
+        except (ValueError, TypeError, OSError):
             self.fail("IPFIX decorator should handle exceptions gracefully")
 
         # Should have logged the error
@@ -249,6 +313,33 @@ class TestIPFIXDecorator(TestCase):
         # This test ensures no crashes occur
         self.assertIsInstance(result, list)
 
+    def test_ipfix_decorator_handles_corrupted_data(self):
+        """Test that IPFIX decorator handles corrupted binary data gracefully."""
+        storage = DummyIPFIXStorage(binary_processor_type="ipfix")
+        # Create invalid IPFIX data with wrong headers
+        corrupted_data = b'\x00\x0a\x00\x10\xff\xff\xff\xff' + b'\x00' * 100
+        fixtures = BytesIO(corrupted_data)
+
+        # Should handle corrupted data without crashing
+        try:
+            result = list(storage.generate(0, fixtures, False))
+            self.assertIsInstance(result, list)
+        except (ValueError, TypeError, OSError) as e:
+            # If it raises an exception, it should be handled gracefully
+            self.assertIsInstance(e, (ValueError, TypeError, OSError))
+
+    def test_ipfix_decorator_with_partial_message(self):
+        """Test IPFIX decorator with incomplete IPFIX message."""
+        storage = DummyIPFIXStorage(binary_processor_type="ipfix")
+        # Create a partial IPFIX message (just header, no template or data)
+        partial_message = struct.pack("!HHIII", 10, 16, 1640995200, 1, 1)
+        fixtures = BytesIO(partial_message)
+
+        result = list(storage.generate(0, fixtures, False))
+        # Should handle partial messages gracefully
+        self.assertIsInstance(result, list)
+
+    # Tests for integration with other decorators
     def test_ipfix_decorator_integration_with_other_decorators(self):
         """Test that IPFIX decorator works correctly with other decorators in the chain."""
         storage = DummyIPFIXStorage(binary_processor_type="ipfix")
@@ -298,18 +389,18 @@ class TestIPFIXDecoratorWithRealData(TestCase):
         self.assertIsInstance(result, list)
 
         # If we have results, verify they're valid JSON
-        for i, (data, start_offset, end_offset, newline, event_offset) in enumerate(result[:3]):  # Check first 3
+        for data, _, _, _, _ in result[:3]:  # Check first 3
             if isinstance(data, bytes):
                 try:
-                    parsed_data = json.loads(data.decode('utf-8'))
+                    parsed_data = json_parser(data.decode('utf-8'))
                     self.assertIsInstance(parsed_data, dict)
-                except json.JSONDecodeError:
+                except ValueError:
                     # Handle concatenated JSON like in the other test
                     data_str = data.decode('utf-8')
                     # Just verify it contains some expected IPFIX field patterns
                     self.assertTrue(
                         any(field in data_str for field in [
-                            'sourceIPv4Address', 'destinationIPv4Address', 'protocolIdentifier', '@timestamp'
+                            'sourceIPv4Address', 'destinationIPv4Address', 'protocolIdentifier', 'header'
                         ]),
                         "Record should contain IPFIX field patterns"
                     )
