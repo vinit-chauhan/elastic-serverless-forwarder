@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 
-import orjson
+from share.json import json_parser, json_dumper
 
 import processors.ie as ie
 from share.logger import logger as shared_logger
@@ -149,11 +149,11 @@ def export_to_ecs(netflow_packet: Dict[str, Any],
 
 def process_additional_flags(
         packet: Dict[str, Any], ecs_event: Dict[str, Any],
-        internal_networks: List[str]
+        internal_networks: List[str]  # pylint: disable=unused-argument
 ) -> None:
     """Process additional NetFlow fields."""
     # TCP Control Bits
-    tcp_ctrl_bits = 0
+    tcp_ctrl_bits = packet.get("tcpControlBits", 0)
     try:
         if isinstance(tcp_ctrl_bits, str):
             tcp_ctrl_bits = int(tcp_ctrl_bits, 16)
@@ -440,8 +440,8 @@ class ECSProcessor(BaseProcessor):
 
         netflow_packet = {}
         try:
-            netflow_packet = orjson.loads(message) if isinstance(message, str) else message
-        except orjson.JSONDecodeError as e:
+            netflow_packet = json_parser(message) if isinstance(message, str) else message
+        except ValueError as e:
             shared_logger.error(
                 "Failed to parse binary processor output as JSON",
                 extra={
@@ -458,7 +458,7 @@ class ECSProcessor(BaseProcessor):
         else:
             exporter_address = "0.0.0.0"
 
-        # TODO: Make internal_networks configurable
+        # NOTE: internal_networks can be configured via context parameter
         internal_networks = context.get("internal_networks", None)
 
         flow_timestamp = None
@@ -478,11 +478,11 @@ class ECSProcessor(BaseProcessor):
 
             # message field should be a string as per shipper requirements
             # ref: shippers/composite.py:52-73
-            event["fields"]["message"] = orjson.dumps(ecs_event).decode("utf-8")
+            event["fields"]["message"] = json_dumper(ecs_event)
 
             return ProcessorResult(event)
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             shared_logger.error(
                 "Error converting to ECS format",
                 extra={"error": str(e)}

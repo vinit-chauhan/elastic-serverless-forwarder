@@ -16,7 +16,7 @@ def process_event(event: Dict[str, Any], processor_chain: Optional[ProcessorChai
 
     try:
         processed_event = processor_chain.process(event, context)
-    except Exception as e:
+    except (ValueError, TypeError, AttributeError) as e:
         # Handle processing errors
         shared_logger.error("Error processing event", extra={"event": event, "error": str(e)})
         return ProcessorResult()

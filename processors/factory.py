@@ -12,18 +12,33 @@ class ProcessorChain:
     def __init__(self, processors: List[BaseProcessor]) -> None:
         self.processors = processors
 
-    def process(self, event: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ProcessorResult:
+    def process(
+        self, event: Dict[str, Any], context: Optional[Dict[str, Any]] = None
+    ) -> ProcessorResult:
 
         if context is None:
             context = {}
 
-        for processor in self.processors:
-            result = processor.process(event, context)
-            if result.is_empty:
-                break
-            event = result.to_dict()
+        current_result = ProcessorResult(event)
 
-        return ProcessorResult(event)
+        for processor in self.processors:
+            if current_result.is_empty:
+                break
+
+            # Process each event from the current result
+            processed_events = []
+            for single_event in current_result.events:
+                result = processor.process(single_event, context)
+                if not result.is_empty:
+                    processed_events.extend(result.events)
+
+            # If no events were processed successfully, stop and return current result
+            if not processed_events:
+                break
+
+            current_result = ProcessorResult(processed_events)
+
+        return current_result
 
 
 class ProcessorFactory:

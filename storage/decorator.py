@@ -447,23 +447,17 @@ def ipfix_decode(func: StorageDecoratorCallable[ProtocolStorageType]) -> Storage
                 # Check if range_start is within the file bounds
                 file_size = binary_data.getbuffer().nbytes
                 if range_start >= file_size:
-                    shared_logger.info(
-                        f"IPFIX continuation: offset {range_start} >= file size {file_size}, "
-                        "no more data to process"
-                    )
-                    return
-                elif range_start > file_size:
                     shared_logger.warning(
-                        f"IPFIX continuation: offset {range_start} exceeds file size {file_size}, "
-                        "seeking to end of file"
+                        "IPFIX continuation: offset exceeds file size, seeking to end of file",
+                        extra={"offset": range_start, "file_size": file_size},
                     )
                     binary_data.seek(file_size)
                 else:
                     # Seek to the continuation position in the binary data
                     binary_data.seek(range_start)
                     shared_logger.info(
-                        f"IPFIX continuation: seeking to binary offset {range_start} "
-                        f"in file of size {file_size}"
+                        "IPFIX continuation: seeking to binary offset in file of size",
+                        extra={"offset": range_start, "file_size": file_size},
                     )
             else:
                 # Start from the beginning
@@ -473,7 +467,7 @@ def ipfix_decode(func: StorageDecoratorCallable[ProtocolStorageType]) -> Storage
                 # Use the new offset-aware parsing function that tracks binary file positions
                 # Pass the range_start to the parser so it knows it's in continuation mode
 
-                for record, binary_start_offset, binary_end_offset in ipfix_parser.parse_ipfix_stream_with_offsets(
+                for record, binary_start_offset, binary_end_offset in ipfix_parser.parse_ipfix_stream(
                     binary_data, range_start
                 ):
                     # Convert each IPFIX record to JSON bytes and yield with proper binary offsets

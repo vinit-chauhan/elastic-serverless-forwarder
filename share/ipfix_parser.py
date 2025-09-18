@@ -235,72 +235,7 @@ class IPFIXStreamingParser:
                 shared_logger.warning("Error parsing data record", extra={"error": str(e)})
                 break
 
-    def parse_records(self) -> Generator[dict[str, Any], None, None]:
-        """
-        Parse IPFIX records from the data source, yielding them one by one.
-
-        Args:
-            max_records: Maximum number of records to process in one batch
-
-        Yields:
-            dict: Individual IPFIX records
-        """
-        record_count = 0
-
-        try:
-            while not self.closed:
-                # Parse message header
-                msg_header_obj = self.parse_message_header()
-                if not msg_header_obj:
-                    break
-
-                msg_header = msg_header_obj.to_dict()
-                bytes_remaining = msg_header_obj.length - 16
-
-                shared_logger.debug("Processing IPFIX message", extra={"bytes_remaining": bytes_remaining})
-
-                # Process all sets in this message
-                while bytes_remaining > 0 and not self.closed:
-                    # Parse flowset header
-                    flowset_header = self.parse_flowset_header()
-                    if not flowset_header:
-                        break
-
-                    set_id, set_length = flowset_header
-
-                    # Read the set data
-                    set_data_length = set_length - 4  # Subtract header size
-                    if set_data_length <= 0:
-                        break
-
-                    set_data = self.read(set_data_length)
-                    if len(set_data) < set_data_length:
-                        break
-
-                    bytes_remaining -= set_length
-
-                    if set_id == 2:  # Template Set
-                        self.parse_template_set(set_data)
-                    elif set_id == 3:  # Options Template Set
-                        shared_logger.debug("Skipping Options Template Set")
-                    elif set_id >= 256:  # Data Set
-                        # Yield records from this data set
-                        for record in self.parse_data_set(set_id, set_data, msg_header):
-                            yield record
-                            record_count += 1
-                    else:
-                        shared_logger.debug("Skipping unknown set ID", extra={"set_id": set_id})
-
-        except Exception as e:
-            shared_logger.error("Error in IPFIX parsing", extra={"error": str(e)})
-        finally:
-            if record_count > 0:
-                shared_logger.info(
-                    "IPFIX parser: Successfully processed records",
-                    extra={"record_count": record_count}
-                )
-
-    def parse_records_with_offsets(
+    def parse_records(
         self, range_start: int = 0
     ) -> Generator[tuple[dict[str, Any], int, int], None, None]:
         """
@@ -473,30 +408,7 @@ class IPFIXStreamingParser:
             shared_logger.info("Template collection complete", extra={"templates": len(self.templates)})
 
 
-def parse_ipfix_stream(data_source: BytesIO) -> Generator[dict[str, Any], None, None]:
-    """
-    Parse IPFIX data from a stream and yield individual records.
-
-    This is the main entry point for streaming IPFIX parsing. It creates a parser
-    instance and yields records one by one, which is memory-efficient for large files.
-
-    Args:
-        data_source: Either raw bytes or a BytesIO stream containing IPFIX data
-        max_records: Maximum number of records to process in one batch
-
-    Yields:
-        dict: Individual IPFIX records with parsed fields
-    """
-    parser = IPFIXStreamingParser(data_source)
-    try:
-        yield from parser.parse_records()
-    except Exception as e:
-        shared_logger.error("Error in IPFIX parsing", extra={"error": str(e)})
-    finally:
-        parser.close()
-
-
-def parse_ipfix_stream_with_offsets(
+def parse_ipfix_stream(
     data_source: BytesIO, range_start: int = 0
 ) -> Generator[tuple[dict[str, Any], int, int], None, None]:
     """
@@ -517,8 +429,7 @@ def parse_ipfix_stream_with_offsets(
     """
     parser = IPFIXStreamingParser(data_source)
     try:
-        for record in parser.parse_records_with_offsets(range_start):
-            yield record
+        yield from parser.parse_records(range_start)
     except Exception as e:
         shared_logger.error("Error in IPFIX parsing with offsets", extra={"error": str(e)})
     finally:
