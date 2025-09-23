@@ -55,11 +55,11 @@ class IPFIXTestHelper:
         return data_set_header + data_records
 
     @staticmethod
-    def create_ipfix_header(message_length: int, export_time: int = 1640995200,
-                            sequence_number: int = 1, observation_domain_id: int = 1) -> bytes:
+    def create_ipfix_header(
+        message_length: int, export_time: int = 1640995200, sequence_number: int = 1, observation_domain_id: int = 1
+    ) -> bytes:
         """Create an IPFIX message header."""
-        return struct.pack("!HHIII", 10, message_length, export_time,
-                           sequence_number, observation_domain_id)
+        return struct.pack("!HHIII", 10, message_length, export_time, sequence_number, observation_domain_id)
 
 
 class DummyIPFIXStorage(CommonStorage):
@@ -93,10 +93,10 @@ class DummyIPFIXStorage(CommonStorage):
 @pytest.mark.unit
 class TestIPFIXDecorator(TestCase):
     """
-        Test cases for the IPFIX decorator functionality.
+    Test cases for the IPFIX decorator functionality.
 
-        This class tests the IPFIX decorator which handles binary IPFIX data processing
-        including template parsing, data record extraction, and conversion to JSON format.
+    This class tests the IPFIX decorator which handles binary IPFIX data processing
+    including template parsing, data record extraction, and conversion to JSON format.
     """
 
     def create_simple_ipfix_messages(self, data: list[Tuple[str, str, int]]) -> list[bytes]:
@@ -105,10 +105,7 @@ class TestIPFIXDecorator(TestCase):
         return messages
 
     def create_simple_ipfix_message(
-            self,
-            source_ip: str = '192.168.1.100',
-            destination_ip: str = '10.0.0.50',
-            protocol: int = 6
+        self, source_ip: str = "192.168.1.100", destination_ip: str = "10.0.0.50", protocol: int = 6
     ) -> bytes:
         """Create a simple IPFIX message for testing."""
         # Template Set
@@ -119,9 +116,9 @@ class TestIPFIXDecorator(TestCase):
         template_record = struct.pack("!HH", template_id, field_count)
 
         # Field Specifiers
-        field1 = struct.pack("!HH", 8, 4)   # sourceIPv4Address (ID=8, Length=4)
+        field1 = struct.pack("!HH", 8, 4)  # sourceIPv4Address (ID=8, Length=4)
         field2 = struct.pack("!HH", 12, 4)  # destinationIPv4Address (ID=12, Length=4)
-        field3 = struct.pack("!HH", 4, 1)   # protocolIdentifier (ID=4, Length=1)
+        field3 = struct.pack("!HH", 4, 1)  # protocolIdentifier (ID=4, Length=1)
 
         template_data = template_record + field1 + field2 + field3
         template_set_length = 4 + len(template_data)
@@ -129,10 +126,12 @@ class TestIPFIXDecorator(TestCase):
         template_set = template_set_header + template_data
 
         # Data Set
-        data_record = struct.pack("!IIB",
-                                  int(IPv4Address(source_ip)),  # sourceIPv4Address
-                                  int(IPv4Address(destination_ip)),  # destinationIPv4Address
-                                  protocol)                                           # protocolIdentifier (TCP)
+        data_record = struct.pack(
+            "!IIB",
+            int(IPv4Address(source_ip)),  # sourceIPv4Address
+            int(IPv4Address(destination_ip)),  # destinationIPv4Address
+            protocol,
+        )  # protocolIdentifier (TCP)
 
         data_set_length = 4 + len(data_record)
         data_set_header = struct.pack("!HH", template_id, data_set_length)
@@ -140,12 +139,9 @@ class TestIPFIXDecorator(TestCase):
 
         # IPFIX Message Header
         message_length = 16 + len(template_set) + len(data_set)
-        header = struct.pack("!HHIII",
-                             10,           # Version=10
-                             message_length,
-                             1640995200,   # Export Time
-                             1,            # Sequence Number
-                             1)            # Observation Domain ID
+        header = struct.pack(
+            "!HHIII", 10, message_length, 1640995200, 1, 1  # Version=10  # Export Time  # Sequence Number
+        )  # Observation Domain ID
 
         return header + template_set + data_set
 
@@ -197,20 +193,20 @@ class TestIPFIXDecorator(TestCase):
 
         # Data should be JSON bytes
         self.assertIsInstance(data, bytes)
-        parsed_data = json_parser(data.decode('utf-8'))
+        parsed_data = json_parser(data.decode("utf-8"))
 
         # IP addresses are converted to dotted decimal format by the IPFIX parser
-        self.assertIn('sourceIPv4Address', parsed_data)
-        self.assertIn('destinationIPv4Address', parsed_data)
-        self.assertIn('protocolIdentifier', parsed_data)
+        self.assertIn("sourceIPv4Address", parsed_data)
+        self.assertIn("destinationIPv4Address", parsed_data)
+        self.assertIn("protocolIdentifier", parsed_data)
 
         # Verify the record has expected structure
         # Note: @timestamp is not added by the IPFIX decorator, only parsed IPFIX fields
-        self.assertIn('header', parsed_data)
+        self.assertIn("header", parsed_data)
 
         # Verify the IP addresses are in dotted decimal format
-        self.assertEqual(parsed_data['sourceIPv4Address'], '192.168.1.100')
-        self.assertEqual(parsed_data['destinationIPv4Address'], '10.0.0.50')
+        self.assertEqual(parsed_data["sourceIPv4Address"], "192.168.1.100")
+        self.assertEqual(parsed_data["destinationIPv4Address"], "10.0.0.50")
 
     # Tests for different data formats
     def test_ipfix_decorator_processes_gzipped_data(self):
@@ -228,14 +224,14 @@ class TestIPFIXDecorator(TestCase):
 
         # Data should be JSON bytes
         self.assertIsInstance(data, bytes)
-        parsed_data = json_parser(data.decode('utf-8'))
+        parsed_data = json_parser(data.decode("utf-8"))
 
         # Verify it has IPFIX structure
-        self.assertIn('sourceIPv4Address', parsed_data)
-        self.assertIn('header', parsed_data)
+        self.assertIn("sourceIPv4Address", parsed_data)
+        self.assertIn("header", parsed_data)
 
         # Verify the IP address is in dotted decimal format
-        self.assertEqual(parsed_data['sourceIPv4Address'], '192.168.1.100')
+        self.assertEqual(parsed_data["sourceIPv4Address"], "192.168.1.100")
 
     # Tests for multiple records and data handling
     def test_ipfix_decorator_handles_multiple_records(self):
@@ -260,7 +256,7 @@ class TestIPFIXDecorator(TestCase):
         for i, result in enumerate(results):
             data, _, _, _, _ = result
             self.assertIsInstance(data, bytes)
-            data_str = data.decode('utf-8')
+            data_str = data.decode("utf-8")
             # IP addresses are in dotted decimal format, not hex
             expected_ip = records[i][0]  # Use the original IP string
             self.assertIn(f'"sourceIPv4Address":"{expected_ip}"', data_str, f"Should contain source IP {expected_ip}")
@@ -268,7 +264,7 @@ class TestIPFIXDecorator(TestCase):
     def test_ipfix_decorator_handles_empty_result(self):
         """Test that IPFIX decorator handles empty processor results."""
         storage = DummyIPFIXStorage(binary_processor_type="ipfix")
-        fixtures = BytesIO(b'')
+        fixtures = BytesIO(b"")
 
         result = list(storage.generate(0, fixtures, False))
 
@@ -276,15 +272,15 @@ class TestIPFIXDecorator(TestCase):
         self.assertEqual(len(result), 0)
 
     # Tests for error handling and edge cases
-    @patch('share.ipfix_parser.parse_ipfix_stream')
-    @patch('storage.decorator.shared_logger')
+    @patch("share.ipfix_parser.parse_ipfix_stream")
+    @patch("storage.decorator.shared_logger")
     def test_ipfix_decorator_handles_processing_exception(self, mock_shared_logger, mock_parse_ipfix_stream):
         """Test that IPFIX decorator handles processing exceptions gracefully."""
         # Mock the streaming parser to raise an exception
         mock_parse_ipfix_stream.side_effect = Exception("IPFIX parsing error")
 
         storage = DummyIPFIXStorage(binary_processor_type="ipfix")
-        fixtures = BytesIO(b'12323414')
+        fixtures = BytesIO(b"12323414")
 
         # Should not raise an exception
         try:
@@ -317,7 +313,7 @@ class TestIPFIXDecorator(TestCase):
         """Test that IPFIX decorator handles corrupted binary data gracefully."""
         storage = DummyIPFIXStorage(binary_processor_type="ipfix")
         # Create invalid IPFIX data with wrong headers
-        corrupted_data = b'\x00\x0a\x00\x10\xff\xff\xff\xff' + b'\x00' * 100
+        corrupted_data = b"\x00\x0a\x00\x10\xff\xff\xff\xff" + b"\x00" * 100
         fixtures = BytesIO(corrupted_data)
 
         # Should handle corrupted data without crashing
@@ -367,16 +363,12 @@ class TestIPFIXDecoratorWithRealData(TestCase):
         """Test IPFIX decorator with the real output.ipfix.gz file."""
         import os
 
-        ipfix_file_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "testdata",
-            "output.ipfix.gz"
-        )
+        ipfix_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "testdata", "output.ipfix.gz")
 
         self.assertTrue(os.path.exists(ipfix_file_path), f"IPFIX test file not found: {ipfix_file_path}")
 
         # Read the real IPFIX file
-        with open(ipfix_file_path, 'rb') as f:
+        with open(ipfix_file_path, "rb") as f:
             ipfix_gz_data = f.read()
 
         storage = DummyIPFIXStorage(binary_processor_type="ipfix")
@@ -392,17 +384,18 @@ class TestIPFIXDecoratorWithRealData(TestCase):
         for data, _, _, _, _ in result[:3]:  # Check first 3
             if isinstance(data, bytes):
                 try:
-                    parsed_data = json_parser(data.decode('utf-8'))
+                    parsed_data = json_parser(data.decode("utf-8"))
                     self.assertIsInstance(parsed_data, dict)
                 except ValueError:
                     # Handle concatenated JSON like in the other test
-                    data_str = data.decode('utf-8')
+                    data_str = data.decode("utf-8")
                     # Just verify it contains some expected IPFIX field patterns
                     self.assertTrue(
-                        any(field in data_str for field in [
-                            'sourceIPv4Address', 'destinationIPv4Address', 'protocolIdentifier', 'header'
-                        ]),
-                        "Record should contain IPFIX field patterns"
+                        any(
+                            field in data_str
+                            for field in ["sourceIPv4Address", "destinationIPv4Address", "protocolIdentifier", "header"]
+                        ),
+                        "Record should contain IPFIX field patterns",
                     )
 
     def test_ipfix_decorator_binary_processor_attribute(self):
@@ -421,7 +414,7 @@ class TestIPFIXDecoratorWithRealData(TestCase):
 
     def test_ipfix_decorator_logging(self):
         """Test that IPFIX decorator logs appropriately."""
-        with patch('storage.decorator.shared_logger') as mock_logger:
+        with patch("storage.decorator.shared_logger") as mock_logger:
             storage = DummyIPFIXStorage(binary_processor_type="ipfix")
             test_data = b"invalid ipfix data"
             fixtures = BytesIO(test_data)

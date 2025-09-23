@@ -35,8 +35,8 @@ class MockProcessor(BaseProcessor):
     def process(self, event: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ProcessorResult:
         # Add a test field to track processing
         processed_event = event.copy()
-        processed_event['processed_by_mock'] = True
-        processed_event['processor_config'] = self._config
+        processed_event["processed_by_mock"] = True
+        processed_event["processor_config"] = self._config
 
         self.processed_events.append(processed_event)
         return ProcessorResult(processed_event)
@@ -46,8 +46,8 @@ class MockFilterProcessor(BaseProcessor):
     """Mock processor that filters events based on condition"""
 
     def process(self, event: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ProcessorResult:
-        filter_field = self._config.get('filter_field')
-        filter_value = self._config.get('filter_value')
+        filter_field = self._config.get("filter_field")
+        filter_value = self._config.get("filter_value")
 
         if filter_field and filter_value:
             if event.get(filter_field) == filter_value:
@@ -72,17 +72,14 @@ class TestProcessorSystem(TestCase):
             "@timestamp": "2025-01-26T10:30:00Z",
             "fields": {
                 "message": '{"timestamp": "2025-01-26T10:30:00Z", "level": "INFO", "message": "Test message"}',
-                "log": {
-                    "offset": 0,
-                    "file": {"path": "s3://bucket/key"}
-                },
+                "log": {"offset": 0, "file": {"path": "s3://bucket/key"}},
                 "aws": {
                     "s3": {
                         "bucket": {"name": "test-bucket", "arn": "arn:aws:s3:::test-bucket"},
-                        "object": {"key": "test-key"}
+                        "object": {"key": "test-key"},
                     }
-                }
-            }
+                },
+            },
         }
 
         # Sample IPFIX event for testing ECS processor (in expected format)
@@ -97,19 +94,15 @@ class TestProcessorSystem(TestCase):
                     "protocolIdentifier": 6,
                     "octetDeltaCount": 1024,
                     "@timestamp": "2025-01-26T10:30:00Z",
-                    "header": {
-                        "version": 10,
-                        "export_time": 1719403200,
-                        "sequence_number": 1
-                    }
+                    "header": {"version": 10, "export_time": 1719403200, "sequence_number": 1},
                 },
                 "aws": {
                     "s3": {
                         "bucket": {"name": "ipfix-bucket", "arn": "arn:aws:s3:::ipfix-bucket"},
-                        "object": {"key": "flow-data.ipfix"}
+                        "object": {"key": "flow-data.ipfix"},
                     }
-                }
-            }
+                },
+            },
         }
 
     @pytest.mark.unit
@@ -133,8 +126,8 @@ class TestProcessorSystem(TestCase):
         self.assertFalse(multiple_result.is_empty)
         self.assertEqual(len(multiple_result), 2)
         result_dict = multiple_result.to_dict()
-        self.assertIn('0', result_dict)
-        self.assertIn('1', result_dict)
+        self.assertIn("0", result_dict)
+        self.assertIn("1", result_dict)
 
     @pytest.mark.unit
     def test_base_processor_configuration(self):
@@ -155,14 +148,14 @@ class TestProcessorSystem(TestCase):
         self.assertEqual(len(result), 1)
 
         processed_event = result.to_dict()
-        self.assertTrue(processed_event['processed_by_mock'])
-        self.assertEqual(processed_event['processor_config'], config)
+        self.assertTrue(processed_event["processed_by_mock"])
+        self.assertEqual(processed_event["processor_config"], config)
 
     @pytest.mark.unit
     def test_processor_factory_creation(self):
         """Test ProcessorFactory creation of processors"""
         # Mock processor registry
-        with patch('processors.factory.ProcessorRegistry') as mock_registry:
+        with patch("processors.factory.ProcessorRegistry") as mock_registry:
             mock_registry.get.return_value = MockProcessor
 
             # Test processor creation
@@ -190,7 +183,7 @@ class TestProcessorSystem(TestCase):
 
         self.assertFalse(result.is_empty)
         processed_event = result.to_dict()
-        self.assertTrue(processed_event['processed_by_mock'])
+        self.assertTrue(processed_event["processed_by_mock"])
 
     @pytest.mark.unit
     def test_processor_factory_invalid_config(self):
@@ -240,8 +233,8 @@ class TestProcessorSystem(TestCase):
         processed_event = result.to_dict()
 
         # Verify processors ran
-        self.assertTrue(processed_event['processed_by_mock'])
-        self.assertEqual(processed_event['processor_config'], {"test_config": "chain_test"})
+        self.assertTrue(processed_event["processed_by_mock"])
+        self.assertEqual(processed_event["processor_config"], {"test_config": "chain_test"})
 
     @pytest.mark.unit
     def test_processor_chain_early_termination(self):
@@ -264,7 +257,7 @@ class TestProcessorSystem(TestCase):
         # Verify the event still has the original fields
         self.assertIn("@timestamp", processed_event)
         # MockProcessor should not have run, so no processed_by_mock field
-        self.assertNotIn('processed_by_mock', processed_event)
+        self.assertNotIn("processed_by_mock", processed_event)
 
     @pytest.mark.unit
     def test_processor_chain_empty_first_processor(self):
@@ -283,7 +276,7 @@ class TestProcessorSystem(TestCase):
         self.assertFalse(result.is_empty)
         processed_event = result.to_dict()
         # Should still contain original event data
-        self.assertEqual(processed_event['@timestamp'], self.sample_event['@timestamp'])
+        self.assertEqual(processed_event["@timestamp"], self.sample_event["@timestamp"])
 
     @pytest.mark.unit
     def test_processor_chain_with_filter(self):
@@ -291,7 +284,7 @@ class TestProcessorSystem(TestCase):
         # Create a filter that stops processing for specific events
         # Add a field to the event first, then filter on it
         test_event = self.sample_event.copy()
-        test_event['should_filter'] = True
+        test_event["should_filter"] = True
 
         proc1 = PassThroughProcessor()
 
@@ -308,9 +301,9 @@ class TestProcessorSystem(TestCase):
         # since filter matched and stopped processing
         self.assertFalse(result.is_empty)
         processed_event = result.to_dict()
-        self.assertEqual(processed_event['should_filter'], True)
+        self.assertEqual(processed_event["should_filter"], True)
         # MockProcessor should not have run since filter stopped the chain
-        self.assertNotIn('processed_by_mock', processed_event)
+        self.assertNotIn("processed_by_mock", processed_event)
 
     @pytest.mark.unit
     def test_processor_chain_with_context(self):
@@ -327,7 +320,7 @@ class TestProcessorSystem(TestCase):
 
         self.assertFalse(result.is_empty)
         processed_event = result.to_dict()
-        self.assertTrue(processed_event['processed_by_mock'])
+        self.assertTrue(processed_event["processed_by_mock"])
 
     @pytest.mark.unit
     def test_processor_chain_empty_list(self):
@@ -344,7 +337,7 @@ class TestProcessorSystem(TestCase):
     def test_processor_factory_create_chain(self):
         """Test ProcessorFactory create_chain method"""
         # Mock the processor registry for this test
-        with patch('processors.factory.ProcessorRegistry') as mock_registry:
+        with patch("processors.factory.ProcessorRegistry") as mock_registry:
             # Set up mock registry to return real processors
             def mock_get(processor_type):
                 if processor_type == "ipfix_ecs":
@@ -357,10 +350,7 @@ class TestProcessorSystem(TestCase):
             mock_registry.get.side_effect = mock_get
 
             # Test creating chain from configurations
-            configs = [
-                {"type": "passthrough"},
-                {"type": "ipfix_ecs"}
-            ]
+            configs = [{"type": "passthrough"}, {"type": "ipfix_ecs"}]
 
             chain = ProcessorFactory.create_chain(configs)
 
@@ -409,13 +399,14 @@ class TestProcessorSystem(TestCase):
         processed_event = result.to_dict()
 
         # Verify ECS processor converted the message field to JSON string
-        self.assertIn('fields', processed_event)
-        self.assertIn('message', processed_event['fields'])
-        self.assertIsInstance(processed_event['fields']['message'], str)
+        self.assertIn("fields", processed_event)
+        self.assertIn("message", processed_event["fields"])
+        self.assertIsInstance(processed_event["fields"]["message"], str)
 
     @pytest.mark.unit
     def test_processor_chain_error_handling(self):
         """Test processor chain handles errors gracefully"""
+
         class ErrorProcessor(BaseProcessor):
             def process(self, event: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ProcessorResult:
                 raise ValueError("Processing error")
@@ -433,14 +424,15 @@ class TestProcessorSystem(TestCase):
     @pytest.mark.unit
     def test_processor_multiple_events_result(self):
         """Test processor that can generate multiple events from one input"""
+
         class MultiEventProcessor(BaseProcessor):
             def process(self, event: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ProcessorResult:
                 # Create multiple events from one input
                 event1 = event.copy()
-                event1['event_id'] = 1
+                event1["event_id"] = 1
 
                 event2 = event.copy()
-                event2['event_id'] = 2
+                event2["event_id"] = 2
 
                 return ProcessorResult([event1, event2])
 
@@ -453,10 +445,10 @@ class TestProcessorSystem(TestCase):
         self.assertEqual(len(result), 2)
 
         result_dict = result.to_dict()
-        self.assertIn('0', result_dict)
-        self.assertIn('1', result_dict)
-        self.assertEqual(result_dict['0']['event_id'], 1)
-        self.assertEqual(result_dict['1']['event_id'], 2)
+        self.assertIn("0", result_dict)
+        self.assertIn("1", result_dict)
+        self.assertEqual(result_dict["0"]["event_id"], 1)
+        self.assertEqual(result_dict["1"]["event_id"], 2)
 
 
 class TestProcessorSystemIPFIXIntegration(TestCase):
@@ -473,7 +465,7 @@ class TestProcessorSystemIPFIXIntegration(TestCase):
                         "length": 844,
                         "export_time": 1719403200,
                         "sequence_number": 1,
-                        "observation_domain_id": 0
+                        "observation_domain_id": 0,
                     },
                     "sourceIPv4Address": "192.168.1.100",
                     "destinationIPv4Address": "10.0.0.50",
@@ -484,16 +476,17 @@ class TestProcessorSystemIPFIXIntegration(TestCase):
                     "packetDeltaCount": 1,
                     "flowStartSysUpTime": 38074304,
                     "flowEndSysUpTime": 38074304,
-                    "@timestamp": "2025-01-26T10:30:00Z"
+                    "@timestamp": "2025-01-26T10:30:00Z",
                 }
-            }
+            },
         }
 
     @pytest.mark.unit
     def test_ipfix_processor_chain_configuration(self):
         """Test creating processor chains for IPFIX processing"""
         # Mock the registry for IPFIX processor
-        with patch('processors.factory.ProcessorRegistry') as mock_registry:
+        with patch("processors.factory.ProcessorRegistry") as mock_registry:
+
             def mock_get(processor_type):
                 if processor_type == "ipfix_ecs":
                     return ECSProcessor
@@ -505,10 +498,7 @@ class TestProcessorSystemIPFIXIntegration(TestCase):
             mock_registry.get.side_effect = mock_get
 
             # Test IPFIX processing chain configuration
-            configs = [
-                {"type": "ipfix_ecs"},
-                {"type": "passthrough"}
-            ]
+            configs = [{"type": "ipfix_ecs"}, {"type": "passthrough"}]
 
             chain = ProcessorFactory.create_chain(configs)
 
@@ -523,11 +513,7 @@ class TestProcessorSystemIPFIXIntegration(TestCase):
         proc = ECSProcessor()
 
         chain = ProcessorChain([proc])
-        context = {
-            "input_type": "s3-sqs",
-            "binary_processor_type": "ipfix",
-            "file_path": "s3://bucket/flows.ipfix.gz"
-        }
+        context = {"input_type": "s3-sqs", "binary_processor_type": "ipfix", "file_path": "s3://bucket/flows.ipfix.gz"}
 
         result = chain.process(self.ipfix_flow_event, context)
 
@@ -535,18 +521,19 @@ class TestProcessorSystemIPFIXIntegration(TestCase):
         processed_event = result.to_dict()
 
         # Verify ECS processor converted the message to JSON string
-        self.assertIn('fields', processed_event)
-        self.assertIn('message', processed_event['fields'])
-        self.assertIsInstance(processed_event['fields']['message'], str)
+        self.assertIn("fields", processed_event)
+        self.assertIn("message", processed_event["fields"])
+        self.assertIsInstance(processed_event["fields"]["message"], str)
 
         # Parse the converted message to verify IPFIX data was preserved
         from share.json import json_parser
-        parsed_message = json_parser(processed_event['fields']['message'])
+
+        parsed_message = json_parser(processed_event["fields"]["message"])
 
         # Verify converted ECS structure
-        self.assertIn('source', parsed_message)
-        self.assertIn('destination', parsed_message)
-        self.assertIn('event', parsed_message)
+        self.assertIn("source", parsed_message)
+        self.assertIn("destination", parsed_message)
+        self.assertIn("event", parsed_message)
 
 
 if __name__ == "__main__":

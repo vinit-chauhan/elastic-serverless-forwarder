@@ -24,11 +24,7 @@ class TestRealIPFIXFile(TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.ipfix_file_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "testdata",
-            "output.ipfix.gz"
-        )
+        self.ipfix_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "testdata", "output.ipfix.gz")
 
         # Cache file data to avoid repeated reads
         self._ipfix_data_cache = None
@@ -37,7 +33,7 @@ class TestRealIPFIXFile(TestCase):
         """Get IPFIX file data with caching for performance."""
         if self._ipfix_data_cache is None:
             if os.path.exists(self.ipfix_file_path):
-                with open(self.ipfix_file_path, 'rb') as f:
+                with open(self.ipfix_file_path, "rb") as f:
                     self._ipfix_data_cache = f.read()
             else:
                 self._ipfix_data_cache = b""
@@ -46,10 +42,7 @@ class TestRealIPFIXFile(TestCase):
     def _create_mock_s3_client(self, ipfix_data: bytes) -> Mock:
         """Create a mock S3 client with consistent behavior."""
         mock_s3_client = Mock()
-        mock_s3_client.head_object.return_value = {
-            'ContentType': 'application/gzip',
-            'ContentLength': len(ipfix_data)
-        }
+        mock_s3_client.head_object.return_value = {"ContentType": "application/gzip", "ContentLength": len(ipfix_data)}
 
         def mock_download(bucket, key, fileobj):
             fileobj.write(ipfix_data)
@@ -59,10 +52,7 @@ class TestRealIPFIXFile(TestCase):
 
     def test_real_ipfix_file_exists(self):
         """Test that the real IPFIX file exists and is readable."""
-        self.assertTrue(
-            os.path.exists(self.ipfix_file_path),
-            f"IPFIX test file not found: {self.ipfix_file_path}"
-        )
+        self.assertTrue(os.path.exists(self.ipfix_file_path), f"IPFIX test file not found: {self.ipfix_file_path}")
 
         # Check file size
         file_size = os.path.getsize(self.ipfix_file_path)
@@ -79,7 +69,7 @@ class TestRealIPFIXFile(TestCase):
         mock_s3_client = self._create_mock_s3_client(ipfix_data)
 
         # Patch the S3 client on the class
-        with patch.object(S3Storage, '_s3_client', mock_s3_client):
+        with patch.object(S3Storage, "_s3_client", mock_s3_client):
             # Create S3 storage with IPFIX processing enabled
             storage = S3Storage("test-bucket", "original.ipfix.gz", binary_processor_type="ipfix")
 
@@ -98,17 +88,19 @@ class TestRealIPFIXFile(TestCase):
                 json_bytes, start_offset, end_offset, event_offset = results[i]
                 self.assertIsInstance(json_bytes, bytes)
                 try:
-                    record = json.loads(json_bytes.decode('utf-8'))
+                    record = json.loads(json_bytes.decode("utf-8"))
                     self.assertIsInstance(record, dict)
                     # Check for common IPFIX fields
-                    ipfix_fields = [k for k in record.keys() if any(
-                        field in k.lower() for field in [
-                            'ip', 'port', 'protocol', 'byte', 'packet', 'flow', 'time'
-                        ]
-                    )]
+                    ipfix_fields = [
+                        k
+                        for k in record.keys()
+                        if any(
+                            field in k.lower() for field in ["ip", "port", "protocol", "byte", "packet", "flow", "time"]
+                        )
+                    ]
                     self.assertGreater(len(ipfix_fields), 0, "Should find IPFIX-related fields in record")
                 except json.JSONDecodeError:
-                    data_str = json_bytes.decode('utf-8')
+                    data_str = json_bytes.decode("utf-8")
                     # Try to find individual JSON objects by looking for }{ patterns
                     json_objects = []
                     start = 0
@@ -119,19 +111,19 @@ class TestRealIPFIXFile(TestCase):
                         if escape_next:
                             escape_next = False
                             continue
-                        if char == '\\':
+                        if char == "\\":
                             escape_next = True
                             continue
                         if char == '"' and not escape_next:
                             in_string = not in_string
                             continue
                         if not in_string:
-                            if char == '{':
+                            if char == "{":
                                 brace_count += 1
-                            elif char == '}':
+                            elif char == "}":
                                 brace_count -= 1
                                 if brace_count == 0:
-                                    json_obj_str = data_str[start:idx+1]
+                                    json_obj_str = data_str[start: idx + 1]
                                     try:
                                         json_obj = json.loads(json_obj_str)
                                         json_objects.append(json_obj)
@@ -143,10 +135,21 @@ class TestRealIPFIXFile(TestCase):
                         first_obj = json_objects[0]
                         self.assertIsInstance(first_obj, dict)
                         self.assertTrue(
-                            any(field in str(first_obj.keys()).lower() for field in [
-                                'ip', 'port', 'protocol', 'byte', 'packet', 'flow', 'time', 'source', 'destination'
-                            ]),
-                            f"Object should contain network/IPFIX-related fields: {list(first_obj.keys())}"
+                            any(
+                                field in str(first_obj.keys()).lower()
+                                for field in [
+                                    "ip",
+                                    "port",
+                                    "protocol",
+                                    "byte",
+                                    "packet",
+                                    "flow",
+                                    "time",
+                                    "source",
+                                    "destination",
+                                ]
+                            ),
+                            f"Object should contain network/IPFIX-related fields: {list(first_obj.keys())}",
                         )
 
     def test_real_ipfix_file_structure_analysis(self):
@@ -158,7 +161,7 @@ class TestRealIPFIXFile(TestCase):
         import struct
 
         # Read and decompress the file
-        with open(self.ipfix_file_path, 'rb') as f:
+        with open(self.ipfix_file_path, "rb") as f:
             compressed_data = f.read()
 
         try:
@@ -168,9 +171,7 @@ class TestRealIPFIXFile(TestCase):
             # Analyze IPFIX message headers
             if len(decompressed_data) >= 16:
                 # Read IPFIX message header
-                version, length, export_time, seq_num, obs_domain = struct.unpack(
-                    '!HHIII', decompressed_data[:16]
-                )
+                version, length, export_time, seq_num, obs_domain = struct.unpack("!HHIII", decompressed_data[:16])
 
                 # IPFIX Message Header fields checked by assertions below
 
@@ -180,7 +181,7 @@ class TestRealIPFIXFile(TestCase):
             # Count potential messages by looking for version markers
             version_count = 0
             for i in range(0, len(decompressed_data) - 1, 2):
-                if struct.unpack('!H', decompressed_data[i:i+2])[0] == 10:
+                if struct.unpack("!H", decompressed_data[i: i + 2])[0] == 10:
                     version_count += 1
 
             # Potential IPFIX messages count checked by assertion below
@@ -198,10 +199,11 @@ class TestRealIPFIXFile(TestCase):
         mock_s3_client = self._create_mock_s3_client(ipfix_data)
 
         # Create S3 storage
-        with patch.object(S3Storage, '_s3_client', mock_s3_client):
+        with patch.object(S3Storage, "_s3_client", mock_s3_client):
             storage = S3Storage("test-bucket", "original.ipfix.gz", binary_processor_type="ipfix")
 
             import time
+
             start_time = time.time()
 
             # Process the file
@@ -212,7 +214,7 @@ class TestRealIPFIXFile(TestCase):
 
             # Log performance metrics for debugging
             if results:
-                print(f"\nIPFIX Performance Test Results:")
+                print("\nIPFIX Performance Test Results:")
                 print(f"  Records processed: {len(results)}")
                 print(f"  Processing time: {processing_time:.2f} seconds")
                 print(f"  Processing rate: {len(results)/processing_time:.1f} records/second")
@@ -220,8 +222,9 @@ class TestRealIPFIXFile(TestCase):
 
             # Performance should be reasonable - relaxed timeout for CI environments
             max_processing_time = 120.0 if len(ipfix_data) > 10000 else 30.0
-            self.assertLess(processing_time, max_processing_time,
-                            f"Should process within {max_processing_time} seconds")
+            self.assertLess(
+                processing_time, max_processing_time, f"Should process within {max_processing_time} seconds"
+            )
 
             # Verify we actually processed some data
             self.assertGreater(len(results), 0, "Should process at least one record")
@@ -245,7 +248,7 @@ class TestRealIPFIXFile(TestCase):
                 mock_s3_client = self._create_mock_s3_client(ipfix_data)
 
                 # Create storage with specific config
-                with patch.object(S3Storage, '_s3_client', mock_s3_client):
+                with patch.object(S3Storage, "_s3_client", mock_s3_client):
                     storage = S3Storage("test-bucket", f"test-{config_name}.ipfix.gz", **config)
 
                     if config.get("binary_processor_type") == "ipfix":
@@ -266,19 +269,19 @@ class TestRealIPFIXFile(TestCase):
     def _validate_ipfix_result(self, json_bytes: bytes) -> None:
         """Helper method to validate IPFIX processing results."""
         try:
-            json.loads(json_bytes.decode('utf-8'))
+            json.loads(json_bytes.decode("utf-8"))
         except json.JSONDecodeError:
             # Handle concatenated JSON like in other tests
-            data_str = json_bytes.decode('utf-8')
-            expected_fields = ['sourceIPv4Address', 'destinationIPv4Address', '@timestamp']
+            data_str = json_bytes.decode("utf-8")
+            expected_fields = ["sourceIPv4Address", "destinationIPv4Address", "@timestamp"]
 
             if not any(field in data_str for field in expected_fields):
                 self.fail(f"IPFIX result should contain expected IPFIX fields: {expected_fields}")
 
             # Additional validation - check for valid JSON structure patterns
-            if not ('{' in data_str and '}' in data_str):
+            if not ("{" in data_str and "}" in data_str):
                 self.fail("IPFIX result should contain valid JSON structure")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

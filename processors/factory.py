@@ -1,3 +1,7 @@
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License 2.0;
+# you may not use this file except in compliance with the Elastic License 2.0.
+
 from typing import Any, Dict, List, Optional
 
 from .processor import BaseProcessor, ProcessorResult
@@ -12,9 +16,7 @@ class ProcessorChain:
     def __init__(self, processors: List[BaseProcessor]) -> None:
         self.processors = processors
 
-    def process(
-        self, event: Dict[str, Any], context: Optional[Dict[str, Any]] = None
-    ) -> ProcessorResult:
+    def process(self, event: Dict[str, Any], context: Optional[Dict[str, Any]] = None) -> ProcessorResult:
 
         if context is None:
             context = {}

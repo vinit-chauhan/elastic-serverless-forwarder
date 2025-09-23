@@ -1,3 +1,7 @@
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License 2.0;
+# you may not use this file except in compliance with the Elastic License 2.0.
+
 import base64
 import functools
 import hashlib
@@ -25,16 +29,13 @@ def format_mac_address(mac: str) -> str:
 
     # Add dashes every 2 characters
     if len(mac_clean) == 12:
-        return "-".join(mac_clean[i:i+2] for i in range(0, 12, 2))
+        return "-".join(mac_clean[i : i + 2] for i in range(0, 12, 2))
 
     return mac
 
 
 @functools.lru_cache(maxsize=50)
-def calculate_flow_id(
-        source_ip: str, dest_ip: str, source_port: int,
-        dest_port: int, protocol: int
-) -> str:
+def calculate_flow_id(source_ip: str, dest_ip: str, source_port: int, dest_port: int, protocol: int) -> str:
     """Calculate flow ID using xxhash (bidirectional)."""
     try:
         # Normalize to ensure bidirectional flows have same ID
@@ -45,24 +46,19 @@ def calculate_flow_id(
 
         # Create hash input
         h = xxhash.xxh64()
-        h.update(socket.inet_pton(
-            socket.AF_INET if '.' in ip1 else socket.AF_INET6, ip1))
-        h.update(struct.pack('>H', port1))
-        h.update(socket.inet_pton(
-            socket.AF_INET if '.' in ip2 else socket.AF_INET6, ip2))
-        h.update(struct.pack('>H', port2))
-        h.update(struct.pack('B', protocol))
+        h.update(socket.inet_pton(socket.AF_INET if "." in ip1 else socket.AF_INET6, ip1))
+        h.update(struct.pack(">H", port1))
+        h.update(socket.inet_pton(socket.AF_INET if "." in ip2 else socket.AF_INET6, ip2))
+        h.update(struct.pack(">H", port2))
+        h.update(struct.pack("B", protocol))
 
-        return base64.urlsafe_b64encode(h.digest()).decode().rstrip('=')
+        return base64.urlsafe_b64encode(h.digest()).decode().rstrip("=")
     except Exception:
         return ""
 
 
 @functools.lru_cache(maxsize=50)
-def calculate_community_id(
-        source_ip: str, dest_ip: str, source_port: int,
-        dest_port: int, protocol: int
-) -> str:
+def calculate_community_id(source_ip: str, dest_ip: str, source_port: int, dest_port: int, protocol: int) -> str:
     """Calculate Community ID v1 hash.
 
     Mirrors the reference algorithm (see Elastic / community-id spec):
@@ -83,17 +79,26 @@ def calculate_community_id(
     IPPROTO_SCTP = 132
 
     icmp_v4_equiv = {
-        8: 0, 0: 8,          # echo
-        13: 14, 14: 13,      # timestamp
-        15: 16, 16: 15,      # information
-        10: 9, 9: 10,        # router solicitation/advertisement
-        17: 18, 18: 17,      # address mask
+        8: 0,
+        0: 8,  # echo
+        13: 14,
+        14: 13,  # timestamp
+        15: 16,
+        16: 15,  # information
+        10: 9,
+        9: 10,  # router solicitation/advertisement
+        17: 18,
+        18: 17,  # address mask
     }
     icmp_v6_equiv = {
-        128: 129, 129: 128,  # echo
-        133: 134, 134: 133,  # router solicitation/advertisement
-        135: 136, 136: 135,  # neighbor solicitation/advertisement
-        130: 131, 131: 130,  # listener query/report (approx mapping)
+        128: 129,
+        129: 128,  # echo
+        133: 134,
+        134: 133,  # router solicitation/advertisement
+        135: 136,
+        136: 135,  # neighbor solicitation/advertisement
+        130: 131,
+        131: 130,  # listener query/report (approx mapping)
     }
 
     try:
@@ -129,19 +134,18 @@ def calculate_community_id(
                 sp, dp = dp, sp
 
         hasher = hashlib.sha1()
-        hasher.update(struct.pack('>H', 0))          # seed
+        hasher.update(struct.pack(">H", 0))  # seed
         hasher.update(src_ip_bytes)
         hasher.update(dst_ip_bytes)
-        hasher.update(bytes([proto & 0xFF, 0]))      # protocol + pad
+        hasher.update(bytes([proto & 0xFF, 0]))  # protocol + pad
 
-        if proto in (IPPROTO_TCP, IPPROTO_UDP, IPPROTO_SCTP,
-                     IPPROTO_ICMP, IPPROTO_ICMPv6):
-            hasher.update(struct.pack('>H', sp & 0xFFFF))
-            hasher.update(struct.pack('>H', dp & 0xFFFF))
+        if proto in (IPPROTO_TCP, IPPROTO_UDP, IPPROTO_SCTP, IPPROTO_ICMP, IPPROTO_ICMPv6):
+            hasher.update(struct.pack(">H", sp & 0xFFFF))
+            hasher.update(struct.pack(">H", dp & 0xFFFF))
 
-        return '1:' + base64.b64encode(hasher.digest()).decode('ascii')
+        return "1:" + base64.b64encode(hasher.digest()).decode("ascii")
     except Exception:
-        return ''
+        return ""
 
 
 @functools.cache
@@ -175,9 +179,7 @@ def get_ip_locality(ip: str, internal_networks: List) -> str:
     return "external"
 
 
-def get_ip_locality_combined(
-        source_ip: str, dest_ip: str, internal_networks: List
-) -> str:
+def get_ip_locality_combined(source_ip: str, dest_ip: str, internal_networks: List) -> str:
     """Determine flow locality based on both source and destination."""
     source_locality = get_ip_locality(source_ip, internal_networks)
     dest_locality = get_ip_locality(dest_ip, internal_networks)
@@ -189,25 +191,20 @@ def get_ip_locality_combined(
 
 def get_protocol_name(protocol_num: int) -> str:
     """Convert protocol number to name."""
-    protocol_map = {
-        1: "icmp",
-        6: "tcp",
-        17: "udp",
-        58: "ipv6-icmp"
-    }
+    protocol_map = {1: "icmp", 6: "tcp", 17: "udp", 58: "ipv6-icmp"}
 
     return protocol_map.get(protocol_num, f"unknown ({protocol_num})")
 
 
 def extract_ip_from_address(address: str) -> str:
     """Extract IP from IP:port format."""
-    if ':' in address:
-        if address.startswith('['):
+    if ":" in address:
+        if address.startswith("["):
             # IPv6 format [::1]:port
-            return address[1:address.rfind(']')]
+            return address[1 : address.rfind("]")]
         else:
             # IPv4 format 1.2.3.4:port
-            return address[:address.rfind(':')]
+            return address[: address.rfind(":")]
     return address
 
 

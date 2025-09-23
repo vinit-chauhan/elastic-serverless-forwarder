@@ -161,8 +161,8 @@ def _handle_s3_sqs_event(
                             "error": str(e),
                             "binary_processor_type": binary_processor_type,
                             "bucket": bucket_name,
-                            "key": object_key
-                        }
+                            "key": object_key,
+                        },
                     )
                     continue
 
@@ -171,7 +171,7 @@ def _handle_s3_sqs_event(
                 timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
             es_event: dict[str, Any] = {
-                "@timestamp":  timestamp,
+                "@timestamp": timestamp,
                 "fields": {
                     "message": log_event.decode("utf-8"),
                     "log": {

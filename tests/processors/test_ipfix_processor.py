@@ -1,4 +1,3 @@
-
 # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
 # or more contributor license agreements. Licensed under the Elastic License 2.0;
 # you may not use this file except in compliance with the Elastic License 2.0.
@@ -14,7 +13,6 @@ This module tests the IPFIX to ECS conversion processor including:
 """
 
 from unittest import TestCase
-from typing import Dict, Any
 
 import pytest
 
@@ -28,7 +26,7 @@ SAMPLE_IPFIX_EVENT = {
         "export_time": 1718321356,
         "sequence_number": 0,
         "observation_domain_id": 0,
-        "start_offset": 0
+        "start_offset": 0,
     },
     "flowEndSysUpTime": "0024437c",
     "flowStartSysUpTime": "0024437c",
@@ -50,45 +48,26 @@ SAMPLE_IPFIX_EVENT = {
     "destinationMacAddress": "b4fbe4d0ea7b",
     "vlanId": "0000",
     "mplsLabelStackLength": "00000003",
-    "processor": {
-        "type": "ipfix",
-        "processed_at": 1718321356
-    },
+    "processor": {"type": "ipfix", "processed_at": 1718321356},
     "aws": {
         "s3": {
-            "bucket": {
-                "name": "ipfix-storage",
-                "arn": "arn:aws:s3:::ipfix-storage"
-            },
-            "object": {
-                "key": "10.100.8.1-small.ipfix"
-            }
+            "bucket": {"name": "ipfix-storage", "arn": "arn:aws:s3:::ipfix-storage"},
+            "object": {"key": "10.100.8.1-small.ipfix"},
         }
     },
-    "cloud": {
-        "provider": "aws",
-        "region": "us-east-2",
-        "account": {
-            "id": "816069150995"
-        }
-    },
+    "cloud": {"provider": "aws", "region": "us-east-2", "account": {"id": "816069150995"}},
     "log": {
         "offset": 5747,
-        "file": {
-            "path": "https://ipfix-storage.s3.us-east-2.amazonaws.com/10.100.8.1-small.ipfix"
-        }
+        "file": {"path": "https://ipfix-storage.s3.us-east-2.amazonaws.com/10.100.8.1-small.ipfix"},
     },
-    "meta": {
-        "event_time": 0,
-        "integration_scope": "generic"
-    }
+    "meta": {"event_time": 0, "integration_scope": "generic"},
 }
 
 # Additional test events for edge cases
 MINIMAL_IPFIX_EVENT = {
     "sourceIPv4Address": "c0a80101",  # 192.168.1.1
     "destinationIPv4Address": "08080808",  # 8.8.8.8
-    "@timestamp": 1718321356
+    "@timestamp": 1718321356,
 }
 
 COMPLEX_IPFIX_EVENT = {
@@ -97,7 +76,7 @@ COMPLEX_IPFIX_EVENT = {
         "length": 1200,
         "export_time": 1718321356,
         "sequence_number": 100,
-        "observation_domain_id": 1
+        "observation_domain_id": 1,
     },
     "sourceIPv4Address": "c0a80164",
     "destinationIPv4Address": "0a000032",
@@ -113,10 +92,7 @@ COMPLEX_IPFIX_EVENT = {
     "sourceMacAddress": "001122334455",
     "destinationMacAddress": "aabbccddeeff",
     "@timestamp": 1718321356,
-    "processor": {
-        "type": "ipfix",
-        "processed_at": 1718321356
-    }
+    "processor": {"type": "ipfix", "processed_at": 1718321356},
 }
 
 
@@ -127,17 +103,14 @@ class TestIPFIXECSProcessor(TestCase):
         """Set up test fixtures"""
         self.processor = ECSProcessor()
         # Wrap the IPFIX data in the expected event structure
-        self.sample_event = {
-            "fields": {
-                "message": SAMPLE_IPFIX_EVENT
-            }
-        }
+        self.sample_event = {"fields": {"message": SAMPLE_IPFIX_EVENT}}
 
     def _parse_ecs_result(self, result):
         """Helper method to parse ECS result from processor"""
         import json
+
         event_result = result.to_dict()
-        return json.loads(event_result['fields']['message'])
+        return json.loads(event_result["fields"]["message"])
 
     @pytest.mark.unit
     def test_ipfix_ecs_basic_conversion(self):
@@ -148,14 +121,14 @@ class TestIPFIXECSProcessor(TestCase):
         ecs_event = self._parse_ecs_result(result)
 
         # Verify core ECS fields are present
-        self.assertIn('source', ecs_event)
-        self.assertIn('destination', ecs_event)
-        self.assertIn('network', ecs_event)
-        self.assertIn('flow', ecs_event)
-        self.assertIn('@timestamp', ecs_event)
-        self.assertIn('event', ecs_event)
-        self.assertIn('related', ecs_event)
-        self.assertIn('netflow', ecs_event)
+        self.assertIn("source", ecs_event)
+        self.assertIn("destination", ecs_event)
+        self.assertIn("network", ecs_event)
+        self.assertIn("flow", ecs_event)
+        self.assertIn("@timestamp", ecs_event)
+        self.assertIn("event", ecs_event)
+        self.assertIn("related", ecs_event)
+        self.assertIn("netflow", ecs_event)
 
     @pytest.mark.unit
     def test_ipfix_ecs_source_destination_mapping(self):
@@ -164,12 +137,12 @@ class TestIPFIXECSProcessor(TestCase):
         ecs_event = self._parse_ecs_result(result)
 
         # Verify source fields
-        self.assertIn('ip', ecs_event['source'])
-        self.assertIn('port', ecs_event['source'])
+        self.assertIn("ip", ecs_event["source"])
+        self.assertIn("port", ecs_event["source"])
 
         # Verify destination fields
-        self.assertIn('ip', ecs_event['destination'])
-        self.assertIn('port', ecs_event['destination'])
+        self.assertIn("ip", ecs_event["destination"])
+        self.assertIn("port", ecs_event["destination"])
 
     @pytest.mark.unit
     def test_ipfix_ecs_network_flow_fields(self):
@@ -178,12 +151,12 @@ class TestIPFIXECSProcessor(TestCase):
         ecs_event = self._parse_ecs_result(result)
 
         # Verify network fields
-        self.assertIn('transport', ecs_event['network'])
-        self.assertIn('bytes', ecs_event['network'])
-        self.assertIn('packets', ecs_event['network'])
+        self.assertIn("transport", ecs_event["network"])
+        self.assertIn("bytes", ecs_event["network"])
+        self.assertIn("packets", ecs_event["network"])
 
         # Verify flow fields
-        self.assertIn('id', ecs_event['flow'])
+        self.assertIn("id", ecs_event["flow"])
 
     @pytest.mark.unit
     def test_ipfix_ecs_event_metadata(self):
@@ -192,53 +165,45 @@ class TestIPFIXECSProcessor(TestCase):
         ecs_event = self._parse_ecs_result(result)
 
         # Verify event metadata
-        event_metadata = ecs_event['event']
-        self.assertEqual(event_metadata['kind'], 'event')
-        self.assertIn('network', event_metadata['category'])
-        self.assertEqual(event_metadata['type'], ['connection'])
+        event_metadata = ecs_event["event"]
+        self.assertEqual(event_metadata["kind"], "event")
+        self.assertIn("network", event_metadata["category"])
+        self.assertEqual(event_metadata["type"], ["connection"])
 
     @pytest.mark.unit
     def test_ipfix_ecs_minimal_event(self):
         """Test ECS conversion with minimal IPFIX event"""
-        minimal_event = {
-            "fields": {
-                "message": MINIMAL_IPFIX_EVENT
-            }
-        }
+        minimal_event = {"fields": {"message": MINIMAL_IPFIX_EVENT}}
         result = self.processor.process(minimal_event)
 
         self.assertFalse(result.is_empty)
         ecs_event = self._parse_ecs_result(result)
 
         # Should still have core ECS structure
-        self.assertIn('source', ecs_event)
-        self.assertIn('destination', ecs_event)
-        self.assertIn('event', ecs_event)
+        self.assertIn("source", ecs_event)
+        self.assertIn("destination", ecs_event)
+        self.assertIn("event", ecs_event)
 
     @pytest.mark.unit
     def test_ipfix_ecs_complex_event(self):
         """Test ECS conversion with complex IPFIX event"""
-        complex_event = {
-            "fields": {
-                "message": COMPLEX_IPFIX_EVENT
-            }
-        }
+        complex_event = {"fields": {"message": COMPLEX_IPFIX_EVENT}}
         result = self.processor.process(complex_event)
 
         self.assertFalse(result.is_empty)
         ecs_event = self._parse_ecs_result(result)
 
         # Should have all enriched fields
-        self.assertIn('source', ecs_event)
-        self.assertIn('destination', ecs_event)
-        self.assertIn('network', ecs_event)
-        self.assertIn('flow', ecs_event)
+        self.assertIn("source", ecs_event)
+        self.assertIn("destination", ecs_event)
+        self.assertIn("network", ecs_event)
+        self.assertIn("flow", ecs_event)
 
         # Should preserve original processor metadata in netflow
-        if 'processor' in COMPLEX_IPFIX_EVENT:
-            self.assertIn('netflow', ecs_event)
+        if "processor" in COMPLEX_IPFIX_EVENT:
+            self.assertIn("netflow", ecs_event)
             # The processor info should be in the netflow namespace
-            self.assertTrue('processor' in ecs_event.get('netflow', {}))
+            self.assertTrue("processor" in ecs_event.get("netflow", {}))
 
     @pytest.mark.unit
     def test_ipfix_ecs_processor_configuration(self):
@@ -269,11 +234,11 @@ class TestIPFIXECSProcessor(TestCase):
         ecs_event = self._parse_ecs_result(result)
 
         # Verify related field contains IPs
-        if 'related' in ecs_event:
-            related = ecs_event['related']
-            if 'ip' in related:
-                self.assertIsInstance(related['ip'], list)
-                self.assertGreater(len(related['ip']), 0)
+        if "related" in ecs_event:
+            related = ecs_event["related"]
+            if "ip" in related:
+                self.assertIsInstance(related["ip"], list)
+                self.assertGreater(len(related["ip"]), 0)
 
     @pytest.mark.unit
     def test_ipfix_ecs_preserves_aws_metadata(self):
@@ -283,8 +248,8 @@ class TestIPFIXECSProcessor(TestCase):
 
         # AWS metadata should be preserved in netflow
         # Check if AWS data was in the original sample and preserved in netflow namespace
-        original_ipfix_data = self.sample_event['fields']['message']
-        if 'aws' in original_ipfix_data:
-            self.assertIn('netflow', ecs_event)
+        original_ipfix_data = self.sample_event["fields"]["message"]
+        if "aws" in original_ipfix_data:
+            self.assertIn("netflow", ecs_event)
             # AWS metadata should be preserved in the netflow namespace
-            self.assertTrue('aws' in ecs_event.get('netflow', {}))
+            self.assertTrue("aws" in ecs_event.get("netflow", {}))

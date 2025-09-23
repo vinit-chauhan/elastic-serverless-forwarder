@@ -1,3 +1,7 @@
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License 2.0;
+# you may not use this file except in compliance with the Elastic License 2.0.
+
 import functools
 import struct
 from typing import Any
@@ -172,7 +176,7 @@ RFC_5102_INFO_ELEMENT = {
     223: ("tcpUrgTotalCount", "unsigned64"),
     224: ("ipTotalLength", "unsigned64"),
     237: ("postMplsTopLabelExp", "unsigned8"),
-    238: ("tcpWindowScale", "unsigned8")
+    238: ("tcpWindowScale", "unsigned8"),
 }
 
 
@@ -181,16 +185,24 @@ def convert(raw_bytes: bytes, field_type: str) -> Any:
     """Convert raw IPFIX bytes to a JSON-serializable Python"""
     """type based on field_type."""
 
-    if field_type in ("unsigned8", "unsigned16", "unsigned32", "unsigned64",
-                      "signed8", "signed16", "signed32", "signed64",):
-        return int.from_bytes(raw_bytes, byteorder='big')
+    if field_type in (
+        "unsigned8",
+        "unsigned16",
+        "unsigned32",
+        "unsigned64",
+        "signed8",
+        "signed16",
+        "signed32",
+        "signed64",
+    ):
+        return int.from_bytes(raw_bytes, byteorder="big")
     try:
         if field_type == "float32":
             return struct.unpack("!f", raw_bytes)[0]
         elif field_type == "float64":
             return struct.unpack("!d", raw_bytes)[0]
         elif field_type == "boolean":
-            return raw_bytes != b'\x00'
+            return raw_bytes != b"\x00"
         elif field_type == "macAddress":
             return "-".join(f"{b:02x}" for b in raw_bytes).upper()
         elif field_type == "ipv4Address":

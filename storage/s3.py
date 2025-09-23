@@ -106,10 +106,11 @@ class S3Storage(CommonStorage):
         if range_start < content_length:
             # For IPFIX binary files, always start from the beginning
             # The IPFIX decorator will handle the correct binary seeking
-            if hasattr(self, 'binary_processor_type') and self.binary_processor_type == "ipfix":
+            if hasattr(self, "binary_processor_type") and self.binary_processor_type == "ipfix":
                 file_content.seek(0, SEEK_SET)
                 shared_logger.debug(
-                    f"IPFIX binary file: always reading from start, will seek to {range_start} in decorator"
+                    "IPFIX binary file: always reading from start, will seek to range_start in decorator",
+                    extra={"range_start": range_start},
                 )
             else:
                 file_content.seek(range_start, SEEK_SET)
@@ -122,15 +123,21 @@ class S3Storage(CommonStorage):
         else:
             # For IPFIX binary files, the range_start might be equal to content_length
             # when we've finished processing, but we should still allow the check
-            if (hasattr(self, 'binary_processor_type') and
-                    self.binary_processor_type == "ipfix" and
-                    range_start == content_length):
+            if (
+                hasattr(self, "binary_processor_type")
+                and self.binary_processor_type == "ipfix"
+                and range_start == content_length
+            ):
                 shared_logger.info(
-                    f"IPFIX file: range_start ({range_start}) equals content_length ({content_length}), "
-                    "processing completed"
+                    "IPFIX file: range_start (range_start) equals content_length (content_length),"
+                    "processing completed",
+                    extra={"range_start": range_start, "content_length": content_length},
                 )
             else:
-                shared_logger.info(f"requested file content from {range_start}, file size {content_length}: skip it")
+                shared_logger.info(
+                    "requested file content from range_start, file size content_length: skip it",
+                    extra={"range_start": range_start, "content_length": content_length},
+                )
 
     def get_as_string(self) -> str:
         shared_logger.debug("get_as_string", extra={"bucket_name": self._bucket_name, "object_key": self._object_key})

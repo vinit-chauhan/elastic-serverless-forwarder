@@ -1,6 +1,7 @@
 # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
 # or more contributor license agreements. Licensed under the Elastic License 2.0;
 # you may not use this file except in compliance with the Elastic License 2.0.
+
 import base64
 import binascii
 import gzip
@@ -117,7 +118,10 @@ class PayloadStorage(CommonStorage):
                 assert isinstance(log_event, bytes)
                 yield log_event, line_starting_offset, line_ending_offset, event_expanded_offset
         else:
-            shared_logger.info(f"requested payload content from {range_start}, payload size {content_length}: skip it")
+            shared_logger.info(
+                "requested payload content from range_start, payload size content_length: skip it",
+                extra={"range_start": range_start, "content_length": content_length},
+            )
 
     def get_as_string(self) -> str:
         try:

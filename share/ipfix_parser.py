@@ -14,8 +14,13 @@ class Message:
     """Represents an IPFIX message with its header information."""
 
     def __init__(
-        self, version: int, length: int, export_time: int,
-        sequence_number: int, observation_domain_id: int, start_offset: int
+        self,
+        version: int,
+        length: int,
+        export_time: int,
+        sequence_number: int,
+        observation_domain_id: int,
+        start_offset: int,
     ) -> None:
         self.version = version
         self.length = length
@@ -39,7 +44,7 @@ class Message:
             "export_time": self.export_time,
             "sequence_number": self.sequence_number,
             "observation_domain_id": self.observation_domain_id,
-            "start_offset": self.start_offset
+            "start_offset": self.start_offset,
         }
 
 
@@ -59,7 +64,7 @@ class TemplateSet:
         return self.fields
 
     @classmethod
-    def parse_from_data(cls, data: bytes) -> 'TemplateSet':
+    def parse_from_data(cls, data: bytes) -> "TemplateSet":
         """Parse template set from binary data."""
         try:
             from processors.ie import RFC_5102_INFO_ELEMENT
@@ -104,9 +109,7 @@ class DataRecord:
         return self.data, self.binary_length
 
     @classmethod
-    def parse_from_template(
-        cls, template: TemplateSet, data: bytes, msg_header: dict
-    ) -> 'DataRecord':
+    def parse_from_template(cls, template: TemplateSet, data: bytes, msg_header: dict) -> "DataRecord":
         """Parse a data record using the provided template."""
 
         record = cls()
@@ -120,7 +123,7 @@ class DataRecord:
             if offset + field_length > len(data):
                 break
 
-            field_data = data[offset:offset + field_length]
+            field_data = data[offset : offset + field_length]
 
             try:
                 value = convert(field_data, field_type)
@@ -148,7 +151,7 @@ class IPFIXStreamingParser:
     def close(self) -> None:
         """Close the parser and release resources."""
         self.closed = True
-        if hasattr(self.file, 'close'):
+        if hasattr(self.file, "close"):
             self.file.close()
 
     def read(self, size: int) -> bytes:
@@ -170,8 +173,7 @@ class IPFIXStreamingParser:
             shared_logger.warning("Unsupported IPFIX version", extra={"version": version})
             return None
 
-        export_time, sequence_number, observation_domain_id = \
-            struct.unpack_from("!III", raw[4:])
+        export_time, sequence_number, observation_domain_id = struct.unpack_from("!III", raw[4:])
 
         return Message(
             version=version,
@@ -179,7 +181,7 @@ class IPFIXStreamingParser:
             export_time=export_time,
             sequence_number=sequence_number,
             observation_domain_id=observation_domain_id,
-            start_offset=self.offset - 16
+            start_offset=self.offset - 16,
         )
 
     def parse_flowset_header(self) -> Optional[tuple[int, int]]:
@@ -194,10 +196,11 @@ class IPFIXStreamingParser:
         """Parse a template set and store the template definitions."""
         try:
             template = TemplateSet.parse_from_data(data)
-            if hasattr(template, 'template_id'):
+            if hasattr(template, "template_id"):
                 self.templates[template.template_id] = template
-                shared_logger.debug("Parsed template", extra={
-                                    "template_id": template.template_id, "fields": len(template.fields)})
+                shared_logger.debug(
+                    "Parsed template", extra={"template_id": template.template_id, "fields": len(template.fields)}
+                )
             else:
                 shared_logger.warning("Template parsing returned invalid object", extra={"type": type(template)})
         except Exception as e:
@@ -222,7 +225,7 @@ class IPFIXStreamingParser:
         # Parse multiple records from the data set
         offset = 0
         while offset + record_size <= len(data):
-            record_data = data[offset:offset + record_size]
+            record_data = data[offset : offset + record_size]
             try:
                 record = DataRecord.parse_from_template(template, record_data, msg_header)
 
@@ -235,9 +238,7 @@ class IPFIXStreamingParser:
                 shared_logger.warning("Error parsing data record", extra={"error": str(e)})
                 break
 
-    def parse_records(
-        self, range_start: int = 0
-    ) -> Generator[tuple[dict[str, Any], int, int], None, None]:
+    def parse_records(self, range_start: int = 0) -> Generator[tuple[dict[str, Any], int, int], None, None]:
         """
         Parse IPFIX records from the stream and yield them with binary file offset information.
 
@@ -264,8 +265,9 @@ class IPFIXStreamingParser:
                 self.file.seek(range_start)
                 self.offset = range_start
                 self.closed = False  # Reset closed flag since we've seeked to new position
-                shared_logger.debug("After template collection", extra={
-                                    "range_start": range_start, "closed": self.closed})
+                shared_logger.debug(
+                    "After template collection", extra={"range_start": range_start, "closed": self.closed}
+                )
 
             while not self.closed:
                 # Track message start position in the binary file
@@ -280,7 +282,7 @@ class IPFIXStreamingParser:
 
                 shared_logger.debug(
                     "Parser loop",
-                    extra={"offset": self.offset, "range_start": range_start, "message_start": message_start_position}
+                    extra={"offset": self.offset, "range_start": range_start, "message_start": message_start_position},
                 )
 
                 # Parse message header
@@ -294,7 +296,7 @@ class IPFIXStreamingParser:
 
                 shared_logger.debug(
                     "Processing IPFIX message at binary position",
-                    extra={"message_start_position": message_start_position, "bytes_remaining": bytes_remaining}
+                    extra={"message_start_position": message_start_position, "bytes_remaining": bytes_remaining},
                 )
 
                 # Process all sets in this message
@@ -339,8 +341,10 @@ class IPFIXStreamingParser:
 
                 shared_logger.debug(
                     "Message spans binary positions",
-                    extra={"message_start_position": message_start_position,
-                           "message_end_position": message_end_position}
+                    extra={
+                        "message_start_position": message_start_position,
+                        "message_end_position": message_end_position,
+                    },
                 )
 
                 # Now process all data sets and yield records with correct binary offsets
@@ -358,8 +362,7 @@ class IPFIXStreamingParser:
         finally:
             if record_count > 0:
                 shared_logger.info(
-                    "IPFIX parser: Successfully processed records with offsets",
-                    extra={"record_count": record_count}
+                    "IPFIX parser: Successfully processed records with offsets", extra={"record_count": record_count}
                 )
 
     def _collect_templates_from_beginning(self) -> None:

@@ -1,3 +1,7 @@
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License 2.0;
+# you may not use this file except in compliance with the Elastic License 2.0.
+
 import re
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
@@ -11,13 +15,13 @@ import share.ecs_helper as ecs_helper
 from .processor import BaseProcessor, ProcessorResult
 from .registry import register_processor
 
-SNAKE_CASE_PATTERN_1 = re.compile('(.)([A-Z][a-z]+)')
-SNAKE_CASE_PATTERN_2 = re.compile('([a-z0-9])([A-Z])')
+SNAKE_CASE_PATTERN_1 = re.compile("(.)([A-Z][a-z]+)")
+SNAKE_CASE_PATTERN_2 = re.compile("([a-z0-9])([A-Z])")
 
 
 def snakify(string) -> str:
-    intermediary = SNAKE_CASE_PATTERN_1.sub(r'\1_\2', string)
-    snaked = SNAKE_CASE_PATTERN_2.sub(r'\1_\2', intermediary).lower()
+    intermediary = SNAKE_CASE_PATTERN_1.sub(r"\1_\2", string)
+    snaked = SNAKE_CASE_PATTERN_2.sub(r"\1_\2", intermediary).lower()
     return snaked
 
 
@@ -32,14 +36,15 @@ def convert_to_snake_case(data: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-RFC_5102_INFO_ELEMENT_SNAKE_CASE = {v[0]: snakify(
-    v[0]) for k, v in ie.RFC_5102_INFO_ELEMENT.items()}
+RFC_5102_INFO_ELEMENT_SNAKE_CASE = {v[0]: snakify(v[0]) for k, v in ie.RFC_5102_INFO_ELEMENT.items()}
 
 
-def export_to_ecs(netflow_packet: Dict[str, Any],
-                  exporter_address: Optional[str] = None,
-                  internal_networks: Optional[List] = None,
-                  flow_timestamp: Optional[datetime] = None) -> Dict[str, Any]:
+def export_to_ecs(
+    netflow_packet: Dict[str, Any],
+    exporter_address: Optional[str] = None,
+    internal_networks: Optional[List] = None,
+    flow_timestamp: Optional[datetime] = None,
+) -> Dict[str, Any]:
     """
     Convert a NetFlow/IPFIX packet to ECS (Elastic Common Schema) format.
 
@@ -53,8 +58,7 @@ def export_to_ecs(netflow_packet: Dict[str, Any],
         Dictionary in ECS format
     """
     if internal_networks is None:
-        internal_networks = ecs_helper.convert_networks(
-            ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"])
+        internal_networks = ecs_helper.convert_networks(["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"])
 
     if flow_timestamp is None:
         flow_timestamp = datetime.now(timezone.utc)
@@ -64,17 +68,16 @@ def export_to_ecs(netflow_packet: Dict[str, Any],
         dt = datetime.fromtimestamp(ts, timezone.utc)
         ts = dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     else:
-        ts = 'NO TIMESTAMP'
+        ts = "NO TIMESTAMP"
 
     # Initialize ECS structure
     ecs_event = {
         "event": {
-            "created": datetime.now(timezone.utc)
-            .strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+            "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
             "kind": "event",
             "category": ["network"],
             "action": "netflow_flow",
-            "type": ["connection"]
+            "type": ["connection"],
         },
         "observer": {},
         "source": {},
@@ -83,7 +86,7 @@ def export_to_ecs(netflow_packet: Dict[str, Any],
         "flow": {},
         "related": {"ip": []},
         "netflow": {},
-        "@timestamp": ts
+        "@timestamp": ts,
     }
 
     # Add observer information
@@ -132,14 +135,12 @@ def export_to_ecs(netflow_packet: Dict[str, Any],
     process_additional_flags(netflow_packet, ecs_event, internal_networks)
 
     # arbitrary field rename
-    ecs_event["netflow"]["source_ipv4_address"] = ecs_event["netflow"].pop(
-        "source_i_pv4_address", None)
-    ecs_event["netflow"]["destination_ipv4_address"] = \
-        ecs_event["netflow"].pop("destination_i_pv4_address", None)
+    ecs_event["netflow"]["source_ipv4_address"] = ecs_event["netflow"].pop("source_i_pv4_address", None)
+    ecs_event["netflow"]["destination_ipv4_address"] = ecs_event["netflow"].pop("destination_i_pv4_address", None)
 
     # Only delete header if it exists
-    if 'header' in ecs_event["netflow"]:
-        del ecs_event["netflow"]['header']
+    if "header" in ecs_event["netflow"]:
+        del ecs_event["netflow"]["header"]
 
     # Clean up empty fields
     ecs_helper.cleanup_empty_fields(ecs_event)
@@ -148,8 +149,7 @@ def export_to_ecs(netflow_packet: Dict[str, Any],
 
 
 def process_additional_flags(
-        packet: Dict[str, Any], ecs_event: Dict[str, Any],
-        internal_networks: List[str]  # pylint: disable=unused-argument
+    packet: Dict[str, Any], ecs_event: Dict[str, Any], internal_networks: List[str]  # pylint: disable=unused-argument
 ) -> None:
     """Process additional NetFlow fields."""
     # TCP Control Bits
@@ -159,8 +159,7 @@ def process_additional_flags(
             tcp_ctrl_bits = int(tcp_ctrl_bits, 16)
     except (ValueError, TypeError):
         shared_logger.warning(
-            "Invalid tcpControlBits value, skipping TCP flags processing",
-            extra={"tcp_ctrl_bits": tcp_ctrl_bits}
+            "Invalid tcpControlBits value, skipping TCP flags processing", extra={"tcp_ctrl_bits": tcp_ctrl_bits}
         )
 
     if tcp_ctrl_bits:
@@ -187,56 +186,38 @@ def process_additional_flags(
     ecs_event["related"]["ip"] = related_ips
 
 
-def process_timing_fields(
-        packet: Dict[str, Any], ecs_event: Dict[str, Any],
-        flow_timestamp: datetime
-) -> None:
+def process_timing_fields(packet: Dict[str, Any], ecs_event: Dict[str, Any], flow_timestamp: datetime) -> None:
     """Process flow timing fields."""
-    sys_uptime = packet.get("uptimeMillis") or packet.get(
-        "systemInitTimeMilliseconds")
+    sys_uptime = packet.get("uptimeMillis") or packet.get("systemInitTimeMilliseconds")
     start_uptime = packet.get("flowStartSysUpTime")
     end_uptime = packet.get("flowEndSysUpTime")
 
     if sys_uptime and start_uptime and start_uptime <= sys_uptime:
         start_offset_ms = start_uptime - sys_uptime
-        ecs_event["event"]["start"] = (
-            flow_timestamp +
-            timedelta(milliseconds=start_offset_ms)
-        ).isoformat()
+        ecs_event["event"]["start"] = (flow_timestamp + timedelta(milliseconds=start_offset_ms)).isoformat()
 
     if sys_uptime and end_uptime and end_uptime <= sys_uptime:
         end_offset_ms = end_uptime - sys_uptime
-        ecs_event["event"]["end"] = (
-            flow_timestamp +
-            timedelta(milliseconds=end_offset_ms)
-        ).isoformat()
+        ecs_event["event"]["end"] = (flow_timestamp + timedelta(milliseconds=end_offset_ms)).isoformat()
 
     # Calculate duration
     if "start" in ecs_event["event"] and "end" in ecs_event["event"]:
-        start_time = datetime.fromisoformat(
-            ecs_event["event"]["start"].replace('Z', '+00:00'))
-        end_time = datetime.fromisoformat(
-            ecs_event["event"]["end"].replace('Z', '+00:00'))
-        duration_ns = int(
-            (end_time - start_time).total_seconds() * 1_000_000_000)
+        start_time = datetime.fromisoformat(ecs_event["event"]["start"].replace("Z", "+00:00"))
+        end_time = datetime.fromisoformat(ecs_event["event"]["end"].replace("Z", "+00:00"))
+        duration_ns = int((end_time - start_time).total_seconds() * 1_000_000_000)
         ecs_event["event"]["duration"] = duration_ns
     elif packet.get("flowDurationMilliseconds"):
         duration_ns = packet["flowDurationMilliseconds"] * 1_000_000
         ecs_event["event"]["duration"] = duration_ns
 
 
-def process_source_fields(
-        packet: Dict[str, Any], ecs_event: Dict[str, Any],
-        internal_networks: List
-) -> None:
+def process_source_fields(packet: Dict[str, Any], ecs_event: Dict[str, Any], internal_networks: List) -> None:
     """Process source IP, port, MAC, and bytes/packets."""
-    source_ip = packet.get("sourceIPv4Address") or packet.get(
-        "sourceIPv6Address")
+    source_ip = packet.get("sourceIPv4Address") or packet.get("sourceIPv6Address")
     if source_ip:
         ecs_event["source"]["ip"] = source_ip
         ecs_event["related"]["ip"].append(source_ip)
-        ecs_event["source"]["locality"] = ecs_helper.get_ip_locality(
-            source_ip, internal_networks)
+        ecs_event["source"]["locality"] = ecs_helper.get_ip_locality(source_ip, internal_networks)
 
     if packet.get("sourceTransportPort"):
         ecs_event["source"]["port"] = packet["sourceTransportPort"]
@@ -245,36 +226,27 @@ def process_source_fields(
         ecs_event["source"]["mac"] = packet["sourceMacAddress"]
 
     # Source bytes and packets
-    source_bytes = (packet.get("octetDeltaCount") or
-                    packet.get("octetTotalCount") or
-                    packet.get("initiatorOctets"))
+    source_bytes = packet.get("octetDeltaCount") or packet.get("octetTotalCount") or packet.get("initiatorOctets")
     if source_bytes:
         # Handle hex string format
         if isinstance(source_bytes, str):
             source_bytes = int(source_bytes, 16)
         ecs_event["source"]["bytes"] = source_bytes
 
-    source_packets = (packet.get("packetDeltaCount") or
-                      packet.get("packetTotalCount") or
-                      packet.get("initiatorPackets"))
+    source_packets = packet.get("packetDeltaCount") or packet.get("packetTotalCount") or packet.get("initiatorPackets")
     if source_packets:
         if isinstance(source_packets, str):
             source_packets = int(source_packets, 16)
         ecs_event["source"]["packets"] = source_packets
 
 
-def process_destination_fields(
-        packet: Dict[str, Any], ecs_event: Dict[str, Any],
-        internal_networks: List
-) -> None:
+def process_destination_fields(packet: Dict[str, Any], ecs_event: Dict[str, Any], internal_networks: List) -> None:
     """Process destination IP, port, MAC, and bytes/packets."""
-    dest_ip = packet.get("destinationIPv4Address") or packet.get(
-        "destinationIPv6Address")
+    dest_ip = packet.get("destinationIPv4Address") or packet.get("destinationIPv6Address")
     if dest_ip:
         ecs_event["destination"]["ip"] = dest_ip
         ecs_event["related"]["ip"].append(dest_ip)
-        ecs_event["destination"]["locality"] = ecs_helper.get_ip_locality(
-            dest_ip, internal_networks)
+        ecs_event["destination"]["locality"] = ecs_helper.get_ip_locality(dest_ip, internal_networks)
 
     if packet.get("destinationTransportPort"):
         ecs_event["destination"]["port"] = packet["destinationTransportPort"]
@@ -283,26 +255,24 @@ def process_destination_fields(
         ecs_event["destination"]["mac"] = packet["destinationMacAddress"]
 
     # Destination bytes and packets (reverse counters)
-    dest_bytes = (packet.get("reverseOctetDeltaCount") or
-                  packet.get("reverseOctetTotalCount") or
-                  packet.get("responderOctets"))
+    dest_bytes = (
+        packet.get("reverseOctetDeltaCount") or packet.get("reverseOctetTotalCount") or packet.get("responderOctets")
+    )
     if dest_bytes:
         if isinstance(dest_bytes, str):
             dest_bytes = int(dest_bytes, 16)
         ecs_event["destination"]["bytes"] = dest_bytes
 
-    dest_packets = (packet.get("reversePacketDeltaCount") or
-                    packet.get("reversePacketTotalCount") or
-                    packet.get("responderPackets"))
+    dest_packets = (
+        packet.get("reversePacketDeltaCount") or packet.get("reversePacketTotalCount") or packet.get("responderPackets")
+    )
     if dest_packets:
         if isinstance(dest_packets, str):
             dest_packets = int(dest_packets, 16)
         ecs_event["destination"]["packets"] = dest_packets
 
 
-def process_network_fields(
-    packet: Dict[str, Any], ecs_event: Dict[str, Any]
-) -> None:
+def process_network_fields(packet: Dict[str, Any], ecs_event: Dict[str, Any]) -> None:
     """Process network-level fields."""
     protocol = packet.get("protocolIdentifier")
     ip_version = packet.get("ipVersion")
@@ -314,8 +284,7 @@ def process_network_fields(
     # Network direction
     flow_direction = packet.get("flowDirection")
     if flow_direction is not None:
-        ecs_event["network"]["direction"] = "inbound" if flow_direction == 0 \
-            else "outbound"
+        ecs_event["network"]["direction"] = "inbound" if flow_direction == 0 else "outbound"
     else:
         ecs_event["network"]["direction"] = "unknown"
 
@@ -331,7 +300,7 @@ def process_network_fields(
         ecs_event["network"]["packets"] = source_packets + dest_packets
 
     if ip_version and ip_version in [4, 6]:
-        ecs_event["network"]["type"] = f'ipv{ip_version}'
+        ecs_event["network"]["type"] = f"ipv{ip_version}"
 
     # WLAN SSID
     if packet.get("wlanSSID"):
@@ -344,16 +313,12 @@ def process_network_fields(
     dest_port = ecs_event.get("destination", {}).get("port", 0)
 
     if source_ip and dest_ip and protocol is not None:
-        community_id = ecs_helper.calculate_community_id(
-            source_ip, dest_ip, source_port, dest_port, protocol)
+        community_id = ecs_helper.calculate_community_id(source_ip, dest_ip, source_port, dest_port, protocol)
         if community_id:
             ecs_event["network"]["community_id"] = community_id
 
 
-def process_flow_fields(
-        packet: Dict[str, Any], ecs_event: Dict[str, Any],
-        internal_networks: List
-) -> None:
+def process_flow_fields(packet: Dict[str, Any], ecs_event: Dict[str, Any], internal_networks: List) -> None:
     """Process flow-level fields."""
     source_ip = ecs_event.get("source", {}).get("ip")
     dest_ip = ecs_event.get("destination", {}).get("ip")
@@ -362,19 +327,14 @@ def process_flow_fields(
     protocol = packet.get("protocolIdentifier", 0)
 
     if source_ip and dest_ip:
-        ecs_event["flow"]["id"] = ecs_helper.calculate_flow_id(
-            source_ip, dest_ip, source_port, dest_port, protocol)
-        ecs_event["flow"]["locality"] = ecs_helper.get_ip_locality_combined(
-            source_ip, dest_ip, internal_networks)
+        ecs_event["flow"]["id"] = ecs_helper.calculate_flow_id(source_ip, dest_ip, source_port, dest_port, protocol)
+        ecs_event["flow"]["locality"] = ecs_helper.get_ip_locality_combined(source_ip, dest_ip, internal_networks)
 
 
-def process_biflow_direction(
-    packet: Dict[str, Any], ecs_event: Dict[str, Any]
-) -> None:
+def process_biflow_direction(packet: Dict[str, Any], ecs_event: Dict[str, Any]) -> None:
     """Handle biflow direction and client/server assignment."""
     biflow_direction = packet.get("biflowDirection")
-    if biflow_direction is not None and \
-            ecs_event.get("source") and ecs_event.get("destination"):
+    if biflow_direction is not None and ecs_event.get("source") and ecs_event.get("destination"):
         if biflow_direction == 2:  # reverseInitiator
             # Swap source and destination
             ecs_event["source"] = ecs_event["destination"]
@@ -385,10 +345,7 @@ def process_biflow_direction(
         ecs_event["server"] = ecs_event["destination"].copy()
 
 
-def process_wlan_fields(
-        packet: Dict[str, Any], ecs_event: Dict[str, Any],
-        internal_networks: List
-) -> None:
+def process_wlan_fields(packet: Dict[str, Any], ecs_event: Dict[str, Any], internal_networks: List) -> None:
     """Process WLAN-specific fields."""
     flow_direction = packet.get("flowDirection")
     sta_ip = packet.get("staIPv4Address")
@@ -400,16 +357,14 @@ def process_wlan_fields(
             # Swap for outbound traffic
             if sta_ip:
                 ecs_event["destination"]["ip"] = sta_ip
-                ecs_event["destination"]["locality"] = ecs_helper.get_ip_locality(
-                    sta_ip, internal_networks)
+                ecs_event["destination"]["locality"] = ecs_helper.get_ip_locality(sta_ip, internal_networks)
                 ecs_event["related"]["ip"].append(sta_ip)
             ecs_event["destination"]["mac"] = sta_mac
             ecs_event["source"]["mac"] = wtp_mac
         else:  # inbound
             if sta_ip:
                 ecs_event["source"]["ip"] = sta_ip
-                ecs_event["source"]["locality"] = ecs_helper.get_ip_locality(
-                    sta_ip, internal_networks)
+                ecs_event["source"]["locality"] = ecs_helper.get_ip_locality(sta_ip, internal_networks)
                 ecs_event["related"]["ip"].append(sta_ip)
             ecs_event["source"]["mac"] = sta_mac
             ecs_event["destination"]["mac"] = wtp_mac
@@ -447,7 +402,7 @@ class ECSProcessor(BaseProcessor):
                 extra={
                     "error": str(e),
                     "raw_message": message,
-                }
+                },
             )
 
         # Extract context information
@@ -473,7 +428,7 @@ class ECSProcessor(BaseProcessor):
                 netflow_packet=netflow_packet,
                 exporter_address=exporter_address,
                 internal_networks=internal_networks,
-                flow_timestamp=flow_timestamp
+                flow_timestamp=flow_timestamp,
             )
 
             # message field should be a string as per shipper requirements
@@ -483,8 +438,5 @@ class ECSProcessor(BaseProcessor):
             return ProcessorResult(event)
 
         except (ValueError, TypeError, KeyError) as e:
-            shared_logger.error(
-                "Error converting to ECS format",
-                extra={"error": str(e)}
-            )
+            shared_logger.error("Error converting to ECS format", extra={"error": str(e)})
             return ProcessorResult()

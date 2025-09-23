@@ -7,11 +7,7 @@ from io import BytesIO
 from typing import Any, Iterator, Optional, Union
 
 
-from share import (
-    ExpandEventListFromField, FeedIterator,
-    ProtocolMultiline, json_parser,
-    shared_logger
-)
+from share import ExpandEventListFromField, FeedIterator, ProtocolMultiline, json_parser, shared_logger
 import share.ipfix_parser as ipfix_parser
 
 from .storage import CHUNK_SIZE, ProtocolStorageType, StorageDecoratorCallable, StorageDecoratorIterator, StorageReader
@@ -31,20 +27,29 @@ def by_lines(func: StorageDecoratorCallable[ProtocolStorageType]) -> StorageDeco
         iterator = func(storage, range_start, body, is_gzipped)
 
         # Check if this storage uses a binary processor that provides its own offsets
-        binary_processor_type = getattr(storage, 'binary_processor_type', None)
+        binary_processor_type = getattr(storage, "binary_processor_type", None)
         preserve_offsets = binary_processor_type == "ipfix"
 
-        for data, starting_offset_from_inner, ending_offset_from_inner, newline_from_inner, \
-                event_offset_from_inner in iterator:
+        for (
+            data,
+            starting_offset_from_inner,
+            ending_offset_from_inner,
+            newline_from_inner,
+            event_offset_from_inner,
+        ) in iterator:
             assert isinstance(data, bytes)
 
             # For binary processors like IPFIX, preserve the offsets from the inner decorator
-            if (preserve_offsets and starting_offset_from_inner is not None and
-                    ending_offset_from_inner is not None):
+            if preserve_offsets and starting_offset_from_inner is not None and ending_offset_from_inner is not None:
                 # The inner decorator (e.g., ipfix_decode) has already provided correct offsets
                 # Just yield the data as-is with the binary offsets
-                yield (data, starting_offset_from_inner, ending_offset_from_inner,
-                       newline_from_inner, event_offset_from_inner)
+                yield (
+                    data,
+                    starting_offset_from_inner,
+                    ending_offset_from_inner,
+                    newline_from_inner,
+                    event_offset_from_inner,
+                )
                 continue
 
             unfinished_line += data
@@ -280,7 +285,7 @@ def json_collector(
         json_collector_state = JsonCollectorState(storage=storage)
 
         multiline_processor: Optional[ProtocolMultiline] = storage.multiline_processor
-        binary_processor_type = getattr(storage, 'binary_processor_type', None)
+        binary_processor_type = getattr(storage, "binary_processor_type", None)
 
         if storage.json_content_type == "disabled" or multiline_processor or binary_processor_type:
             iterator = func(storage, range_start, body, is_gzipped)
@@ -426,7 +431,7 @@ def ipfix_decode(func: StorageDecoratorCallable[ProtocolStorageType]) -> Storage
         storage: ProtocolStorageType, range_start: int, body: BytesIO, is_gzipped: bool
     ) -> StorageDecoratorIterator:
         # Check if this storage should use IPFIX processing
-        binary_processor_type = getattr(storage, 'binary_processor_type', None)
+        binary_processor_type = getattr(storage, "binary_processor_type", None)
 
         if binary_processor_type == "ipfix":
 
@@ -472,9 +477,10 @@ def ipfix_decode(func: StorageDecoratorCallable[ProtocolStorageType]) -> Storage
                 ):
                     # Convert each IPFIX record to JSON bytes and yield with proper binary offsets
                     from share.json import json_dumper
-                    json_bytes = json_dumper(record).encode('utf-8')
+
+                    json_bytes = json_dumper(record).encode("utf-8")
                     # Adding newline to separate records by line
-                    json_bytes += b'\n'
+                    json_bytes += b"\n"
 
                     # Yield with the binary file offsets (already adjusted in the parser)
                     yield json_bytes, binary_start_offset, binary_end_offset, b"", None
@@ -482,7 +488,7 @@ def ipfix_decode(func: StorageDecoratorCallable[ProtocolStorageType]) -> Storage
             except Exception as e:
                 shared_logger.error(
                     "Error processing IPFIX data with streaming parser",
-                    extra={"error": str(e), "data_size": binary_data.getbuffer().nbytes, "range_start": range_start}
+                    extra={"error": str(e), "data_size": binary_data.getbuffer().nbytes, "range_start": range_start},
                 )
                 # Don't re-raise the exception, just log it and continue
                 # This allows the pipeline to continue processing other data
